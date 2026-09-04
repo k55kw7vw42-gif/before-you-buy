@@ -29,29 +29,41 @@ export function isBillingConfigured(): boolean {
   return getBillingConfig() !== null;
 }
 
+/**
+ * STRIPE_API_BASE exists so the tests can point the SDK at a local stub. Leave
+ * it unset in every real environment.
+ */
+function hostOptionsFromEnv(): Partial<Stripe.StripeConfig> {
+  const override = process.env.STRIPE_API_BASE?.trim();
+  if (!override) return {};
+  try {
+    const url = new URL(override);
+    return {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : undefined,
+      protocol: url.protocol === "http:" ? "http" : "https",
+    };
+  } catch {
+    console.error("[billing] STRIPE_API_BASE is not a valid URL; ignoring it");
+    return {};
+  }
+}
+
+/**
+ * Builds a client from a secret key alone. The app uses `getStripe()`, which
+ * also needs a price and a webhook secret; a maintenance script that only reads
+ * from Stripe has no use for either.
+ */
+export function createStripeClient(secretKey: string): Stripe {
+  return new Stripe(secretKey, { ...hostOptionsFromEnv(), maxNetworkRetries: 2 });
+}
+
 export function getStripe(): Stripe | null {
   const config = getBillingConfig();
   if (!config) return null;
   if (cached) return cached;
 
-  // STRIPE_API_BASE exists so the billing tests can point the SDK at a local
-  // stub. Leave it unset in every real environment.
-  const override = process.env.STRIPE_API_BASE?.trim();
-  let hostOptions: Partial<Stripe.StripeConfig> = {};
-  if (override) {
-    try {
-      const url = new URL(override);
-      hostOptions = {
-        host: url.hostname,
-        port: url.port ? Number(url.port) : undefined,
-        protocol: url.protocol === "http:" ? "http" : "https",
-      };
-    } catch {
-      console.error("[billing] STRIPE_API_BASE is not a valid URL; ignoring it");
-    }
-  }
-
-  cached = new Stripe(config.secretKey, { ...hostOptions, maxNetworkRetries: 2 });
+  cached = createStripeClient(config.secretKey);
   return cached;
 }
 

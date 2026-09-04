@@ -133,6 +133,7 @@ npm run test:unit      # AI response parsing, risk scoring bands, schema migrati
 npm run build
 npm run test:vision    # the real vision path, against a local stub (no credits spent)
 npm run test:billing   # the whole paid flow, against local stubs (no charges made)
+npm run test:backfill  # the one-off period backfill, against seeded Pro data
 npm start              # then, in another terminal:
 npm run test:smoke     # end-to-end HTTP checks against a running server
 ```
@@ -251,6 +252,52 @@ The Checkout return page (`/billing/success`) reconciles immediately rather than
 the webhook, but it does not trust the redirect: it reads the session back from Stripe and
 grants Pro only if Stripe says it is paid **and** it belongs to the signed-in user.
 
+### Backfilling billing periods (one-off)
+
+Subscribers who existed before allowances moved to billing periods have no stored period, so
+they fall back to the calendar month until their next Stripe webhook fills it in — at renewal,
+or on any subscription change. To move them across immediately, read the period straight from
+Stripe:
+
+```bash
+# 1. Dry run first. This is the default: it writes nothing.
+STRIPE_SECRET_KEY=sk_live_... DATABASE_PATH=./data/before-you-pay.db \
+  npm run backfill:periods
+
+# 2. Happy with the plan? Apply it.
+STRIPE_SECRET_KEY=sk_live_... DATABASE_PATH=./data/before-you-pay.db \
+  npm run backfill:periods -- --apply
+```
+
+Required environment:
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `STRIPE_SECRET_KEY` | **Yes** | The script exits 2 without it. Read-only use — it only retrieves subscriptions. |
+| `DATABASE_PATH` | Only if you override it | Must be the same database the app runs against. Defaults to `./data/before-you-pay.db`. |
+
+`STRIPE_PRICE_ID` and `STRIPE_WEBHOOK_SECRET` are **not** needed — the script never creates a
+checkout or verifies a webhook.
+
+If the app runs from a `.env.local`, load it rather than retyping the key:
+
+```bash
+set -a && . ./.env.local && set +a && npm run backfill:periods -- --apply
+```
+
+Flags: `--force` re-reads every active Pro row rather than only those missing a period (useful
+if stored periods have gone stale); `--quiet` prints only errors.
+
+**What it does and does not do.** It is deliberately narrow: it writes the two period columns
+and nothing else, so it can neither grant nor revoke access. Free users are never selected.
+Rows it cannot resolve — no `stripe_subscription_id`, a subscription deleted at Stripe, or one
+Stripe now reports as cancelled — are reported and skipped rather than guessed at; retiring an
+entitlement is a webhook's job, not a backfill's. One bad row does not stop the run, and the
+script exits non-zero if any row failed so a deploy step notices.
+
+It is safe to run more than once: only rows missing a period are considered, so a second run
+finds nothing to do. `npm run test:backfill` exercises all of this against seeded Pro data.
+
 ### Scoring
 
 Score runs 0–100: **0–30 Low Risk**, **31–60 Medium Risk**, **61–100 High Risk**.
@@ -335,6 +382,9 @@ scripts/
   unit-test.mjs              Parser and scoring tests
   verify-vision.mjs          The vision path, against a stub
   verify-billing.mjs         The paid flow end to end, against stubs
+  verify-backfill.mjs        The period backfill, against seeded Pro data
+  backfill-subscription-periods.mjs
+                             One-off: populate billing periods from Stripe
 ```
 
 ### Swapping the AI provider

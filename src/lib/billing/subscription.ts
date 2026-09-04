@@ -139,7 +139,7 @@ export function findUserByCustomerId(customerId: string): string | null {
  * The billing period lives on the subscription item in current API versions,
  * with the top-level fields kept for older ones.
  */
-function periodIso(
+export function periodIso(
   subscription: Stripe.Subscription,
   edge: "current_period_start" | "current_period_end",
 ): string | null {
@@ -189,4 +189,15 @@ export function claimBillingEvent(id: string, type: string): boolean {
  */
 export function releaseBillingEvent(id: string): void {
   getDb().prepare("DELETE FROM billing_events WHERE id = ?").run(id);
+}
+
+/** Both ends of the billing period Stripe is currently charging for. */
+export function subscriptionPeriod(subscription: Stripe.Subscription): {
+  start: string | null;
+  end: string | null;
+} {
+  return {
+    start: periodIso(subscription, "current_period_start"),
+    end: periodIso(subscription, "current_period_end"),
+  };
 }
