@@ -169,6 +169,28 @@ async function main() {
     );
   }
 
+  // -- Health probe -------------------------------------------------------
+  section("Health probe");
+  {
+    const response = await request(null, "/api/health");
+    const body = await json(response);
+    check("GET /api/health returns 200", response.status === 200, `status ${response.status}`);
+    check("it reports ok", body?.status === "ok", JSON.stringify(body));
+    check("it works with no session and no cookies", (response.headers.getSetCookie?.() ?? []).length === 0);
+    check(
+      "it is not cached",
+      /no-store/.test(response.headers.get("cache-control") ?? ""),
+      response.headers.get("cache-control") ?? "(none)",
+    );
+    // A liveness probe must not disclose configuration.
+    const text = JSON.stringify(body ?? {});
+    check(
+      "it discloses nothing about the deployment",
+      !/sk-|sk_|whsec|DATABASE|password|email/i.test(text),
+      text,
+    );
+  }
+
   // -- Core loop as a guest ----------------------------------------------
   section("Core loop (guest)");
   const guest = newJar();

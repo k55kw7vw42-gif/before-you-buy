@@ -14,7 +14,7 @@ import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 
 const ROOT = resolvePath(dirname(fileURLToPath(import.meta.url)), "..");
 register(pathToFileURL(resolvePath(ROOT, "scripts/ts-alias-hook.mjs")));
@@ -277,6 +277,51 @@ try {
       /* not created */
     }
   }
+}
+
+
+// ---------------------------------------------------------------------------
+console.log("\nDeployment configuration");
+// These are the invariants a deploy silently depends on. Getting one wrong does
+// not fail a build - it fails in production, so they are pinned here.
+{
+  const pkg = JSON.parse(readFileSync(resolvePath(ROOT, "package.json"), "utf8"));
+
+  t(
+    "the start script does not hardcode a port",
+    !/-p\s*\d+|--port/.test(pkg.scripts.start),
+    pkg.scripts.start,
+  );
+  t("the start script runs next start", /next start/.test(pkg.scripts.start), pkg.scripts.start);
+  t(
+    "engines requires the Node version node:sqlite needs",
+    pkg.engines?.node === ">=22.5.0",
+    JSON.stringify(pkg.engines),
+  );
+
+  const dockerfile = readFileSync(resolvePath(ROOT, "Dockerfile"), "utf8");
+  t(
+    "the image keeps the database off the container filesystem",
+    /ENV DATABASE_PATH=\/data\//.test(dockerfile),
+  );
+  t("the image declares the data volume", /VOLUME \["\/data"\]/.test(dockerfile));
+  t("the image runs as a non-root user", /USER nextjs/.test(dockerfile));
+  t(
+    "the server binds all interfaces, not loopback",
+    /ENV HOSTNAME=0\.0\.0\.0/.test(dockerfile),
+  );
+  t("the image does not pin a port the platform cannot override", !/ENV PORT=\$/.test(dockerfile));
+  t("the healthcheck uses the unauthenticated route", /\/api\/health/.test(dockerfile));
+
+  const dockerignore = readFileSync(resolvePath(ROOT, ".dockerignore"), "utf8")
+    .split("\n")
+    .map((l) => l.trim());
+  t("the build context excludes the database directory", dockerignore.includes("data"));
+  t("the build context excludes local env files", dockerignore.includes(".env.local"));
+  t("the build context excludes node_modules", dockerignore.includes("node_modules"));
+
+  const nextConfig = readFileSync(resolvePath(ROOT, "next.config.ts"), "utf8");
+  t('next builds the standalone server the image runs', /output:\s*"standalone"/.test(nextConfig));
 }
 
 

@@ -1,0 +1,23 @@
+# Build inputs only. Anything generated, local, or secret stays out of the image.
+node_modules
+.next
+out
+build
+
+# The SQLite database belongs on a mounted volume, never baked into an image.
+data
+
+.env
+.env.local
+.env*.local
+
+.git
+.gitignore
+*.md
+!README.md
+
+npm-debug.log*
+*.tsbuildinfo
+.DS_Store
+Dockerfile
+.dockerignore

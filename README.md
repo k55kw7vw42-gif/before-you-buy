@@ -13,7 +13,7 @@ is a scam.
 
 ## Running it locally
 
-Requires **Node.js 22.5 or newer** (the app uses Node's built-in `node:sqlite` driver, so
+Requires **Node.js 22.5 or newer** (enforced by `engines`) (the app uses Node's built-in `node:sqlite` driver, so
 there is no database server to install and no native module to compile).
 
 ```bash
@@ -95,6 +95,57 @@ If `ANTHROPIC_API_KEY` is not set, the app starts in **demo mode**: the whole fl
 screenshots are not actually read. The offline analyser only applies keyword rules to the
 notes you type alongside an upload, and every page and result says so. The link checker is
 fully functional in demo mode — it is deterministic and makes no AI calls.
+
+---
+
+## Deploying
+
+The app keeps its state in a SQLite file and rate-limits in process memory, so it runs as
+**exactly one instance with a persistent volume**. Two replicas would each get their own
+database and their own rate-limit counters. That rules out serverless and autoscaling targets
+(Vercel, Netlify, Lambda); it suits a single container or VM with a disk — Fly.io with a
+volume, Railway or Render with a persistent disk, or any Docker host.
+
+```bash
+docker build -t before-you-pay .
+docker volume create before-you-pay-data
+docker run -d --name before-you-pay \
+  -p 3000:3000 \
+  -v before-you-pay-data:/data \
+  --env-file .env.production \
+  --restart unless-stopped \
+  before-you-pay
+```
+
+**The volume must be mounted at `/data`.** The image sets `DATABASE_PATH=/data/before-you-pay.db`,
+and nothing durable is written anywhere else, so the container can be replaced without losing
+accounts. WAL mode means three files (`.db`, `.db-wal`, `.db-shm`) — back up the directory, not
+just the `.db`.
+
+The image runs `node server.js` from Next's standalone output as a non-root user, and reads
+`PORT` and `HOSTNAME` from the environment, so platforms that inject `$PORT` work unchanged.
+`HOSTNAME` defaults to `0.0.0.0`; leave it, or the server binds loopback and nothing can reach
+it. A `HEALTHCHECK` polls `/api/health`.
+
+**HTTPS is required.** Session cookies are issued `Secure` in production, so over plain HTTP
+the browser discards them and every login silently fails. Terminate TLS at your proxy or
+platform.
+
+### Health check
+
+`GET /api/health` returns `{"status":"ok","uptime":<seconds>}`. It takes no session and touches
+no database, Stripe or AI provider, so a slow dependency cannot take a healthy container out of
+rotation, and it discloses nothing about the deployment.
+
+### Running the backfill in a container
+
+```bash
+docker exec -it before-you-pay npm run backfill:periods            # dry run
+docker exec -it before-you-pay npm run backfill:periods -- --apply
+```
+
+The image carries `src/` and `scripts/` for this. `STRIPE_SECRET_KEY` and `DATABASE_PATH` come
+from the container environment, so no extra flags are needed.
 
 ---
 
