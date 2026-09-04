@@ -1,6 +1,11 @@
 /** Upload and URL validation shared by the client and the API routes. */
 
-export const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
+/**
+ * The Claude vision API caps a single image at 10 MB *base64-encoded*, and
+ * base64 inflates by about 4/3. 7 MB of raw bytes encodes to ~9.3 MB, which
+ * stays comfortably under that ceiling.
+ */
+export const MAX_IMAGE_BYTES = 7 * 1024 * 1024; // 7 MB
 export const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
 export const ALLOWED_IMAGE_EXTENSIONS = ".png,.jpg,.jpeg,.webp,.gif";
 

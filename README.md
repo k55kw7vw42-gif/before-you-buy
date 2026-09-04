@@ -31,6 +31,37 @@ npm start                      # http://localhost:3000
 
 The SQLite database is created automatically on first run at `./data/before-you-pay.db`.
 
+### Testing a real screenshot analysis
+
+1. Put your key in `.env.local`:
+
+   ```bash
+   echo 'ANTHROPIC_API_KEY=sk-ant-your-real-key' >> .env.local
+   ```
+
+   Next.js loads `.env.local` automatically for both `npm run dev` and `npm start`. Nothing
+   else needs configuring — `AI_PROVIDER` switches to `anthropic` on its own once a key is
+   present.
+
+2. Start the app and open <http://localhost:3000>:
+
+   ```bash
+   npm run dev
+   ```
+
+3. Confirm you are **not** in demo mode: the home page's yellow "Running in demo mode" strip
+   should be gone. If it is still there, the key was not picked up — restart the dev server
+   after editing `.env.local`.
+
+4. Go to **Scan Screenshot**, upload a real screenshot of a suspicious message, listing or
+   invoice, and submit. A real scan takes a few seconds. On the results page you should see
+   fields the model actually read out of your image (seller name, price, payment method) —
+   not the generic "Demo analysis" summary, and no "Limits of this check" note about the
+   screenshot not being read.
+
+If something goes wrong, the server console names the cause: a rejected key logs
+`[ai:anthropic] auth rejected ... Check that ANTHROPIC_API_KEY is set correctly`.
+
 ### Running without an API key
 
 If `ANTHROPIC_API_KEY` is not set, the app starts in **demo mode**: the whole flow works, but
@@ -47,12 +78,17 @@ compiled into the browser bundle.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | For real screenshot analysis | — | API key for the vision model. Without it the app runs in demo mode. |
+| `ANTHROPIC_API_KEY` | **Yes, for real screenshot analysis** | — | API key for the vision model. Without it the app runs in demo mode. |
 | `AI_PROVIDER` | No | `anthropic` if a key is set, else `mock` | Which provider the AI service layer uses: `anthropic` or `mock`. |
-| `ANTHROPIC_MODEL` | No | `claude-sonnet-5` | Vision model id. |
+| `ANTHROPIC_MODEL` | No | `claude-opus-5` | Vision model id. |
+| `ANTHROPIC_BASE_URL` | No | Anthropic's API | Read by the SDK itself. Only used to point the app at a stub; leave unset normally. |
 | `DATABASE_PATH` | No | `./data/before-you-pay.db` | SQLite file location. Created on first run. |
 | `RATE_LIMIT_MAX` | No | `10` | Analyses allowed per window, per user or per IP. |
 | `RATE_LIMIT_WINDOW_MS` | No | `60000` | Length of the rate-limit window, in milliseconds. |
+
+`ANTHROPIC_API_KEY` is the only one you have to set. It belongs in `.env.local`
+(gitignored) or in your host's secret manager — never in `next.config.ts`, never in a
+`NEXT_PUBLIC_` variable, and never in a file that is committed.
 
 ---
 
@@ -61,9 +97,19 @@ compiled into the browser bundle.
 ```bash
 npm run typecheck      # tsc --noEmit
 npm run test:unit      # AI response parsing + risk scoring bands
-npm run build && npm start
+npm run build
+npm run test:vision    # the real vision path, against a local stub (no credits spent)
+npm start              # then, in another terminal:
 npm run test:smoke     # end-to-end HTTP checks against a running server
 ```
+
+`test:vision` is the one to run after changing anything in `src/lib/ai/`. It starts a stub
+Anthropic endpoint, points the app at it with `ANTHROPIC_BASE_URL`, uploads a real PNG, and
+asserts on **both** sides of the call: that the screenshot bytes really are attached to the
+request as base64 with the right media type and model, and that the model's reply — its
+observations, its evidence wording, its caveats — is what produced the score and the warning
+signs. It also covers a refusal, a truncated reply and a rejected key. It needs no API key
+and spends nothing.
 
 `test:smoke` drives the real HTTP surface: the scan loop, risk bands, upload validation,
 signup/login/logout, cross-user authorisation and rate limiting. Point it elsewhere with
@@ -84,6 +130,26 @@ of signal codes, each with a confidence. It never returns a score. Scoring happe
 in `src/lib/risk/engine.ts`, which is deterministic and provider-independent, so swapping AI
 vendors cannot silently change how risk is calculated. Observations carrying a code that is
 not in the catalog are discarded rather than trusted.
+
+### The vision call
+
+`src/lib/ai/anthropic.ts` is the only place that talks to Anthropic. Each scan is a single
+non-streaming `messages.create` call carrying the screenshot as a base64 `image` block
+followed by the text instruction — image first, which is how Claude reads this kind of prompt
+most reliably.
+
+- **Model** — `claude-opus-5` by default, overridable with `ANTHROPIC_MODEL`.
+- **`max_tokens: 16000`** — thinking is on by default on this model tier and its tokens count
+  against the ceiling, so a low value truncates the JSON mid-object. If a reply ever does hit
+  the cap the app reports it rather than failing to parse.
+- **`effort: "medium"`** — a person is waiting on a spinner, and extraction from one
+  screenshot is bounded work. Raise it to `"high"` in that file to spend more per scan on the
+  model's judgement.
+- **Image limits** — the API accepts PNG, JPEG, WebP and GIF up to 10 MB *base64-encoded* and
+  8000x8000 px. The 7 MB upload cap keeps encoded images under that ceiling; oversized or
+  otherwise rejected images surface as a plain "try a smaller or clearer screenshot".
+- **Refusals** — a refusal is an HTTP 200 with no usable content, so `stop_reason` is checked
+  before the content blocks are read.
 
 ### Scoring
 
@@ -120,7 +186,8 @@ implementation that declares its own limits in the results.
   never sent to the client, never logged, and upstream error bodies are never forwarded to the
   user (only a status code is logged, for operators).
 - **Uploads are validated twice.** Declared MIME type *and* magic bytes must both be an
-  allowed image format (PNG, JPEG, WebP, GIF), with an 8 MB limit.
+  allowed image format (PNG, JPEG, WebP, GIF), with a 7 MB limit (which keeps the
+  base64-encoded image under the vision API's 10 MB per-image ceiling).
 - **Authorisation is enforced in the query.** Ownership is part of the `WHERE` clause, so
   there is no code path that returns another user's scan. A scan belonging to someone else is
   indistinguishable from one that does not exist — both 404 — so scan ids cannot be probed.
