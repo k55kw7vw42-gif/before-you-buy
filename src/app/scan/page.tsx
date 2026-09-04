@@ -1,9 +1,19 @@
 import { ScanUploader } from "@/components/ScanUploader";
+import { LimitReached } from "@/components/LimitReached";
+import { UsageMeter } from "@/components/UsageMeter";
 import { isDemoMode } from "@/lib/ai";
+import { getCurrentUser, getGuestId } from "@/lib/auth";
+import { isBillingConfigured } from "@/lib/billing/stripe";
+import { getUsage } from "@/lib/billing/usage";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Scan a screenshot - Before You Pay" };
 
-export default function ScanPage() {
+export default async function ScanPage() {
+  const user = await getCurrentUser();
+  const guestId = user ? null : await getGuestId();
+  const usage = getUsage({ userId: user?.id ?? null, guestId });
+
   return (
     <div className="stack">
       <div>
@@ -13,13 +23,25 @@ export default function ScanPage() {
           for common scam warning signs and tell you what to check before you pay.
         </p>
       </div>
+
+      <UsageMeter usage={usage} signedIn={!!user} />
+
       {isDemoMode() && (
         <p className="notice-strip">
           Demo mode: no AI provider is configured, so the screenshot itself is not read. Anything
           you type in the notes box below is still analysed.
         </p>
       )}
-      <ScanUploader />
+
+      {usage.exhausted ? (
+        <LimitReached
+          usage={usage}
+          signedIn={!!user}
+          billingConfigured={isBillingConfigured()}
+        />
+      ) : (
+        <ScanUploader />
+      )}
     </div>
   );
 }

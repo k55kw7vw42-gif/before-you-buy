@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -19,6 +20,7 @@ export function ScanUploader() {
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [quotaHit, setQuotaHit] = useState(false);
 
   // The preview is a local object URL: the image is never uploaded until the
   // user submits, and the URL is revoked as soon as it is replaced.
@@ -61,7 +63,15 @@ export function ScanUploader() {
 
     try {
       const response = await fetch("/api/analyze/image", { method: "POST", body });
-      const data = (await response.json()) as { id?: string; error?: string };
+      const data = (await response.json()) as { id?: string; error?: string; code?: string };
+      if (response.status === 402 || data.code === "quota_exceeded") {
+        // The allowance ran out - refresh so the page swaps in the upgrade panel.
+        setQuotaHit(true);
+        setError(data.error ?? "You have used your analyses for this month.");
+        setBusy(false);
+        router.refresh();
+        return;
+      }
       if (!response.ok || !data.id) {
         setError(data.error ?? "We could not analyse that screenshot. Please try again.");
         setBusy(false);
@@ -79,6 +89,12 @@ export function ScanUploader() {
       {error && (
         <p className="alert" role="alert" style={{ marginBottom: "1rem" }}>
           {error}
+          {quotaHit && (
+            <>
+              {" "}
+              <Link href="/pricing">See plans</Link>.
+            </>
+          )}
         </p>
       )}
 

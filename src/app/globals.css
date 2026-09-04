@@ -467,3 +467,103 @@ input:focus-visible, textarea:focus-visible, .btn:focus-visible, a:focus-visible
 }
 .auth-card { max-width: 26rem; margin: 2.5rem auto; }
 .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+
+/* ---- Usage meter ---- */
+.usage-meter {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 0.95rem;
+}
+.usage-meter.usage-low { border-color: var(--medium-border); background: var(--medium-bg); }
+.usage-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+}
+.usage-line strong { font-weight: 650; }
+.usage-cta { margin-left: auto; font-size: 0.88rem; font-weight: 600; white-space: nowrap; }
+.usage-bar {
+  margin-top: 0.6rem;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.usage-bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
+.usage-meter.usage-low .usage-bar span { background: var(--medium); }
+.usage-bar-lg { height: 10px; margin-top: 0.5rem; }
+.usage-note { margin: 0.55rem 0 0; font-size: 0.82rem; color: var(--muted); }
+.usage-headline { font-size: 1.05rem; margin-bottom: 0.25rem; }
+.usage-headline strong { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+
+/* ---- Pricing ---- */
+.plan-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+.plan-card { display: flex; flex-direction: column; position: relative; }
+.plan-featured { border-color: var(--brand); }
+.plan-tag {
+  position: absolute;
+  top: -0.7rem;
+  right: 1.1rem;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+@media (prefers-color-scheme: dark) {
+  .plan-tag { color: #08122b; }
+}
+.plan-price {
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0.25rem 0 0.35rem;
+}
+.plan-period { font-size: 0.95rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.plan-features { list-style: none; padding: 0; margin: 1.1rem 0 0; display: grid; gap: 0.6rem; }
+.plan-features li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-size: 0.93rem;
+  color: var(--ink-soft);
+}
+.plan-features svg { color: var(--low); flex: 0 0 auto; margin-top: 0.22rem; }
+.plan-action { margin-top: auto; padding-top: 1.5rem; }
+.plan-header {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.plan-header-action { flex: 0 0 auto; }
+@media (max-width: 520px) {
+  .plan-header-action { width: 100%; }
+  .plan-header-action .btn { width: 100%; }
+}
+
+/* ---- FAQ ---- */
+.faq { margin: 0; }
+.faq dt { font-weight: 650; margin-top: 1rem; font-size: 0.95rem; }
+.faq dt:first-child { margin-top: 0; }
+.faq dd { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+
+/* The nav gained Pricing and Plan links; on narrow screens the email address is
+   the least useful item, and it is shown in full on the account page anyway. */
+@media (max-width: 720px) {
+  .site-nav .user-email { display: none; }
+  .site-nav { gap: 0.15rem; }
+  .site-nav a, .site-nav button { padding-inline: 0.45rem; font-size: 0.87rem; }
+}

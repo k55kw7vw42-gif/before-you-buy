@@ -11,13 +11,15 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "node --experimental-strip-types --no-warnings scripts/unit-test.mjs",
     "test:smoke": "node scripts/smoke-test.mjs",
-    "test:vision": "node scripts/verify-vision.mjs"
+    "test:vision": "node scripts/verify-vision.mjs",
+    "test:billing": "node scripts/verify-billing.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
     "next": "^15.5.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "stripe": "^22.6.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

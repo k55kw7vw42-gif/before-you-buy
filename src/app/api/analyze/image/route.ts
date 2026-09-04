@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AiProviderError, getAiProvider } from "@/lib/ai";
 import { ensureGuestId, getCurrentUser } from "@/lib/auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
+import { getUsage } from "@/lib/billing/usage";
 import { assessRisk } from "@/lib/risk/engine";
 import { saveScan } from "@/lib/scans";
 import { MAX_IMAGE_BYTES, formatBytes, isAllowedImageType, sniffImageType } from "@/lib/validation";
@@ -57,6 +58,29 @@ export async function POST(request: Request) {
     );
   }
 
+  // Resolve the owner before spending anything: the plan allowance is checked
+  // before the vision model is called, never after.
+  const guestId = user ? null : await ensureGuestId();
+  const owner = { userId: user?.id ?? null, guestId };
+
+  const usage = getUsage(owner);
+  if (usage.exhausted) {
+    return NextResponse.json(
+      {
+        error:
+          usage.plan.id === "pro"
+            ? `You have used all ${usage.limit} analyses included this month.`
+            : `You have used your ${usage.limit} free analyses this month.`,
+        code: "quota_exceeded",
+        plan: usage.plan.id,
+        used: usage.used,
+        limit: usage.limit,
+        periodEnd: usage.periodEnd,
+      },
+      { status: 402 },
+    );
+  }
+
   const bytes = new Uint8Array(await file.arrayBuffer());
   // The declared Content-Type is client-controlled; trust the magic bytes.
   const sniffed = sniffImageType(bytes);
@@ -80,10 +104,9 @@ export async function POST(request: Request) {
     });
 
     const risk = assessRisk(extraction.observations);
-    const guestId = user ? null : await ensureGuestId();
 
     const id = saveScan({
-      owner: { userId: user?.id ?? null, guestId },
+      owner,
       scanType: "screenshot",
       sourceLabel: file.name?.slice(0, 120) || "Uploaded screenshot",
       provider: provider.name,

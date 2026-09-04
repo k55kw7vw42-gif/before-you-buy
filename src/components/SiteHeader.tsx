@@ -35,9 +35,11 @@ export async function SiteHeader() {
         <nav className="site-nav">
           <Link href="/scan">Scan screenshot</Link>
           <Link href="/link">Check a link</Link>
+          <Link href="/pricing">Pricing</Link>
           {user ? (
             <>
               <Link href="/history">History</Link>
+              <Link href="/account">Plan</Link>
               <span className="user-email" title={user.email}>
                 {user.email}
               </span>

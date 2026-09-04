@@ -62,6 +62,33 @@ The SQLite database is created automatically on first run at `./data/before-you-
 If something goes wrong, the server console names the cause: a rejected key logs
 `[ai:anthropic] auth rejected ... Check that ANTHROPIC_API_KEY is set correctly`.
 
+### Setting up Stripe
+
+Payments are optional. Without the `STRIPE_*` variables the app runs fine — the Pricing page
+renders, everyone stays on Free, and the upgrade button says payments are not configured.
+
+To turn them on:
+
+1. **Create the product.** In the Stripe Dashboard, add a Product called "Pro" with a
+   **recurring** price of $9.99/month. Copy the **price** id (`price_…`, not the product id)
+   into `STRIPE_PRICE_ID`.
+2. **Copy your secret key** (Developers → API keys) into `STRIPE_SECRET_KEY`. Use a `sk_test_…`
+   key while developing.
+3. **Point a webhook at the app.** The endpoint is `POST /api/billing/webhook`, subscribed to
+   `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated` and `customer.subscription.deleted`. Locally:
+
+   ```bash
+   stripe listen --forward-to localhost:3000/api/billing/webhook
+   ```
+
+   Copy the `whsec_…` it prints into `STRIPE_WEBHOOK_SECRET`. In production, create the
+   endpoint in the Dashboard and copy its signing secret.
+
+**No publishable key is required.** The app uses hosted Stripe Checkout: the server creates
+the session and returns a URL for the browser to follow, so Stripe.js never loads and no
+Stripe key of any kind reaches the client.
+
 ### Running without an API key
 
 If `ANTHROPIC_API_KEY` is not set, the app starts in **demo mode**: the whole flow works, but
@@ -82,11 +109,17 @@ compiled into the browser bundle.
 | `AI_PROVIDER` | No | `anthropic` if a key is set, else `mock` | Which provider the AI service layer uses: `anthropic` or `mock`. |
 | `ANTHROPIC_MODEL` | No | `claude-opus-5` | Vision model id. |
 | `ANTHROPIC_BASE_URL` | No | Anthropic's API | Read by the SDK itself. Only used to point the app at a stub; leave unset normally. |
+| `STRIPE_SECRET_KEY` | For payments | — | Secret API key (`sk_test_…` / `sk_live_…`). |
+| `STRIPE_PRICE_ID` | For payments | — | The recurring $9.99/month Price for Pro (`price_…`). |
+| `STRIPE_WEBHOOK_SECRET` | For payments | — | Signing secret for the webhook endpoint (`whsec_…`). |
+| `APP_URL` | No | request origin | Base URL for Checkout return links. Only needed behind a proxy. |
+| `STRIPE_API_BASE` | No | Stripe's API | Test-only override; `npm run test:billing` points it at a stub. |
 | `DATABASE_PATH` | No | `./data/before-you-pay.db` | SQLite file location. Created on first run. |
 | `RATE_LIMIT_MAX` | No | `10` | Analyses allowed per window, per user or per IP. |
 | `RATE_LIMIT_WINDOW_MS` | No | `60000` | Length of the rate-limit window, in milliseconds. |
 
-`ANTHROPIC_API_KEY` is the only one you have to set. It belongs in `.env.local`
+`ANTHROPIC_API_KEY` is the only one needed to analyse screenshots; the three `STRIPE_*`
+variables are needed to take payments. Everything else has a working default. It belongs in `.env.local`
 (gitignored) or in your host's secret manager — never in `next.config.ts`, never in a
 `NEXT_PUBLIC_` variable, and never in a file that is committed.
 
@@ -99,9 +132,18 @@ npm run typecheck      # tsc --noEmit
 npm run test:unit      # AI response parsing + risk scoring bands
 npm run build
 npm run test:vision    # the real vision path, against a local stub (no credits spent)
+npm run test:billing   # the whole paid flow, against local stubs (no charges made)
 npm start              # then, in another terminal:
 npm run test:smoke     # end-to-end HTTP checks against a running server
 ```
+
+`test:billing` walks the complete flow end to end: upload → vision analysis → risk score →
+warnings → usage count → free limit reached → Checkout → Pro. Stripe and Anthropic are both
+stubbed locally, but our own logic is not: webhook payloads are signed with Stripe's own
+signing helper and checked by the real `stripe.webhooks.constructEvent`, and the suite asserts
+that a **forged** signature and an **unsigned** payload are both rejected and grant nobody Pro.
+It also covers duplicate deliveries, cancellation lapsing the entitlement, and that no secret
+appears in the rendered HTML or the server log.
 
 `test:vision` is the one to run after changing anything in `src/lib/ai/`. It starts a stub
 Anthropic endpoint, points the app at it with `ANTHROPIC_BASE_URL`, uploads a real PNG, and
@@ -150,6 +192,36 @@ most reliably.
   otherwise rejected images surface as a plain "try a smaller or clearer screenshot".
 - **Refusals** — a refusal is an HTTP 200 with no usable content, so `stop_reason` is checked
   before the content blocks are read.
+
+### Plans, usage and entitlement
+
+| | Free | Pro |
+| --- | --- | --- |
+| Price | $0 | $9.99/month |
+| Screenshot analyses | 3 per month | 100 per month |
+| Link checks | Unlimited | Unlimited |
+
+Only screenshot analyses are metered, because those are what call the vision model. Link
+checks are deterministic and cost nothing to run. Allowances reset on the first of each
+calendar month (UTC).
+
+**Usage is counted from the `scans` table itself** rather than a separate counter, so the
+number a user sees can never drift from the scans they actually have. A scan row is only
+written after the analysis succeeds, so rejected uploads and failed calls are not charged.
+The quota is checked *before* the vision model is called, so an over-limit request costs
+nothing.
+
+**Nothing but Stripe can grant Pro.** `POST /api/billing/webhook` verifies the Stripe
+signature over the raw request body and discards anything unsigned or forged; the app never
+marks an account Pro because the browser said so. Entitlement is then re-derived on every
+request from the stored status *and* period end (`src/lib/billing/subscription.ts`), so a
+stale row cannot keep someone on Pro indefinitely — if a webhook is ever missed, access
+lapses on its own at the period end. Webhook deliveries are de-duplicated by event id, and a
+failed apply releases its claim so Stripe's retry is not mistaken for a duplicate.
+
+The Checkout return page (`/billing/success`) reconciles immediately rather than waiting for
+the webhook, but it does not trust the redirect: it reads the session back from Stripe and
+grants Pro only if Stripe says it is paid **and** it belongs to the signed-in user.
 
 ### Scoring
 
@@ -212,15 +284,20 @@ src/
     results/[id]/            Results page
     history/                 Scan history (authenticated)
     login/ signup/           Authentication
+    pricing/                 Plan comparison
+    account/                 Plan, subscription status and monthly usage
+    billing/success/         Checkout return, reconciled against Stripe
     api/
-      analyze/image          Screenshot analysis endpoint
+      analyze/image          Screenshot analysis endpoint (quota enforced here)
       analyze/link           Link analysis endpoint
       scans/  scans/[id]     History list and single scan
       auth/*                 Signup, login, logout, current user
+      billing/*              Checkout, webhook, portal, status
   lib/
     ai/                      Provider interface, Anthropic impl, offline mock, response parser
     risk/                    Signal catalog and the scoring engine
     link/                    URL heuristics and the reputation plug point
+    billing/                 Plans, Stripe client, entitlement, usage counting
     db.ts auth.ts scans.ts   SQLite schema, sessions, scan persistence
     validation.ts            Upload and URL validation (shared client/server)
     rate-limit.ts            Fixed-window limiter
@@ -228,6 +305,8 @@ src/
 scripts/
   smoke-test.mjs             End-to-end HTTP tests
   unit-test.mjs              Parser and scoring tests
+  verify-vision.mjs          The vision path, against a stub
+  verify-billing.mjs         The paid flow end to end, against stubs
 ```
 
 ### Swapping the AI provider
@@ -249,3 +328,10 @@ committing fraud. A low score is not an endorsement.
   store behind the same function signature.
 - The link checker does no domain-reputation lookup yet (see the plug point above).
 - Scan history has no pagination; it returns the 50 most recent scans.
+- Signed-out visitors get the Free allowance tracked against a guest cookie, so clearing
+  cookies resets it. Accounts are the real enforcement boundary; requiring sign-in to scan
+  would close the gap at the cost of the current no-signup-needed first run.
+- The quota is checked and then the scan is written, so two simultaneous requests can both
+  pass the check. The existing rate limiter bounds how far that can go; a transaction around
+  the check and insert would close it.
+- Allowances run on the calendar month rather than the subscriber's billing period.
