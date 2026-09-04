@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { UsageSummary } from "@/lib/billing/usage";
-import { formatResetDate } from "@/lib/billing/usage";
+import { formatResetDate, periodLabel } from "@/lib/billing/usage";
 
 /** Compact "scans left" line shown above the scanner. */
 export function UsageMeter({ usage, signedIn }: { usage: UsageSummary; signedIn: boolean }) {
@@ -15,7 +15,7 @@ export function UsageMeter({ usage, signedIn }: { usage: UsageSummary; signedIn:
           <strong>{usage.plan.name} plan</strong> ·{" "}
           {isPro ? (
             <>
-              {usage.used} of {usage.limit} analyses used this month
+              {usage.used} of {usage.limit} analyses used {periodLabel(usage.period)}
             </>
           ) : (
             <>

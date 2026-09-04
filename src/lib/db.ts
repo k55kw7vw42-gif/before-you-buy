@@ -76,6 +76,20 @@ CREATE TABLE IF NOT EXISTS billing_events (
   processed_at TEXT NOT NULL
 );
 
+-- A slot claimed against a plan allowance for the duration of one analysis.
+-- The row is written before the vision model is called and removed once the
+-- scan is saved (or the attempt fails), so two concurrent requests cannot both
+-- pass a check that only one of them has room for.
+CREATE TABLE IF NOT EXISTS scan_reservations (
+  id           TEXT PRIMARY KEY,
+  owner_key    TEXT NOT NULL,
+  period_start TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  expires_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reservations_owner
+  ON scan_reservations(owner_key, period_start, expires_at);
+
 CREATE TABLE IF NOT EXISTS extracted_info (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   scan_id     TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
@@ -110,11 +124,31 @@ CREATE TABLE IF NOT EXISTS recommendations (
 CREATE INDEX IF NOT EXISTS idx_recommendations_scan ON recommendations(scan_id, position);
 `;
 
+/**
+ * Columns added after a table first shipped. SQLite has no "ADD COLUMN IF NOT
+ * EXISTS", so each one is checked against the live table before it is added.
+ */
+const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string }> = [
+  {
+    table: "subscriptions",
+    column: "current_period_start",
+    ddl: "ALTER TABLE subscriptions ADD COLUMN current_period_start TEXT",
+  },
+];
+
+function migrate(db: DatabaseSync): void {
+  for (const { table, column, ddl } of ADDED_COLUMNS) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === column)) db.exec(ddl);
+  }
+}
+
 function open(): DatabaseSync {
   const file = resolve(process.env.DATABASE_PATH ?? "./data/before-you-pay.db");
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 

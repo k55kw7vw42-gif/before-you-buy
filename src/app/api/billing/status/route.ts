@@ -23,7 +23,9 @@ export async function GET() {
     limit: usage.limit,
     remaining: usage.remaining,
     exhausted: usage.exhausted,
+    periodStart: usage.period.start,
     periodEnd: usage.periodEnd,
+    periodBasis: usage.period.basis,
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
     renewsAt: subscription?.currentPeriodEnd ?? null,
   });

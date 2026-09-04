@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/billing/plans";
 import type { UsageSummary } from "@/lib/billing/usage";
-import { formatResetDate } from "@/lib/billing/usage";
+import { formatResetDate, periodLabel } from "@/lib/billing/usage";
 import { UpgradeButton } from "./UpgradeButton";
 
 /** Shown in place of the uploader once the monthly allowance is spent. */
@@ -24,7 +24,7 @@ export function LimitReached({
       </span>
       <h2 style={{ marginTop: "0.75rem" }}>
         {isPro
-          ? `You've used all ${usage.limit} analyses this month`
+          ? `You've used all ${usage.limit} analyses ${periodLabel(usage.period)}`
           : `You've used your ${usage.limit} free analyses this month`}
       </h2>
 

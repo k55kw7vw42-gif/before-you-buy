@@ -8,6 +8,7 @@ export interface SubscriptionRecord {
   stripeSubscriptionId: string | null;
   plan: PlanId;
   status: string;
+  currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
 }
@@ -18,6 +19,7 @@ interface Row {
   stripe_subscription_id: string | null;
   plan: string;
   status: string;
+  current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: number;
 }
@@ -32,6 +34,7 @@ function toRecord(row: Row): SubscriptionRecord {
     stripeSubscriptionId: row.stripe_subscription_id,
     plan: row.plan === "pro" ? "pro" : "free",
     status: row.status,
+    currentPeriodStart: row.current_period_start,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end === 1,
   };
@@ -72,6 +75,7 @@ interface UpsertInput {
   stripeSubscriptionId?: string | null;
   plan?: PlanId;
   status?: string;
+  currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
 }
@@ -87,6 +91,10 @@ export function upsertSubscription(input: UpsertInput): void {
     stripeSubscriptionId: input.stripeSubscriptionId ?? existing?.stripeSubscriptionId ?? null,
     plan: input.plan ?? existing?.plan ?? "free",
     status: input.status ?? existing?.status ?? "inactive",
+    currentPeriodStart:
+      input.currentPeriodStart !== undefined
+        ? input.currentPeriodStart
+        : (existing?.currentPeriodStart ?? null),
     currentPeriodEnd:
       input.currentPeriodEnd !== undefined ? input.currentPeriodEnd : (existing?.currentPeriodEnd ?? null),
     cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? existing?.cancelAtPeriodEnd ?? false,
@@ -95,13 +103,14 @@ export function upsertSubscription(input: UpsertInput): void {
   db.prepare(
     `INSERT INTO subscriptions
        (user_id, stripe_customer_id, stripe_subscription_id, plan, status,
-        current_period_end, cancel_at_period_end, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        current_period_start, current_period_end, cancel_at_period_end, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        stripe_customer_id     = excluded.stripe_customer_id,
        stripe_subscription_id = excluded.stripe_subscription_id,
        plan                   = excluded.plan,
        status                 = excluded.status,
+       current_period_start   = excluded.current_period_start,
        current_period_end     = excluded.current_period_end,
        cancel_at_period_end   = excluded.cancel_at_period_end,
        updated_at             = excluded.updated_at`,
@@ -111,6 +120,7 @@ export function upsertSubscription(input: UpsertInput): void {
     next.stripeSubscriptionId,
     next.plan,
     next.status,
+    next.currentPeriodStart,
     next.currentPeriodEnd,
     next.cancelAtPeriodEnd ? 1 : 0,
     now,
@@ -125,13 +135,18 @@ export function findUserByCustomerId(customerId: string): string | null {
   return row?.user_id ?? null;
 }
 
-function periodEndIso(subscription: Stripe.Subscription): string | null {
-  // The period lives on the subscription item in current API versions, with the
-  // top-level field kept for older ones.
-  const item = subscription.items?.data?.[0] as { current_period_end?: number } | undefined;
+/**
+ * The billing period lives on the subscription item in current API versions,
+ * with the top-level fields kept for older ones.
+ */
+function periodIso(
+  subscription: Stripe.Subscription,
+  edge: "current_period_start" | "current_period_end",
+): string | null {
+  const item = subscription.items?.data?.[0] as unknown as Record<string, unknown> | undefined;
   const seconds =
-    item?.current_period_end ??
-    (subscription as unknown as { current_period_end?: number }).current_period_end;
+    (item?.[edge] as number | undefined) ??
+    (subscription as unknown as Record<string, number | undefined>)[edge];
   return typeof seconds === "number" ? new Date(seconds * 1000).toISOString() : null;
 }
 
@@ -149,7 +164,8 @@ export function applyStripeSubscription(userId: string, subscription: Stripe.Sub
     stripeSubscriptionId: subscription.id,
     plan: ENTITLING_STATUSES.has(subscription.status) ? "pro" : "free",
     status: subscription.status,
-    currentPeriodEnd: periodEndIso(subscription),
+    currentPeriodStart: periodIso(subscription, "current_period_start"),
+    currentPeriodEnd: periodIso(subscription, "current_period_end"),
     cancelAtPeriodEnd: subscription.cancel_at_period_end === true,
   });
 }

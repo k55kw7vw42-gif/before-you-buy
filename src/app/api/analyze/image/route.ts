@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { AiProviderError, getAiProvider } from "@/lib/ai";
 import { ensureGuestId, getCurrentUser } from "@/lib/auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
-import { getUsage } from "@/lib/billing/usage";
+import { releaseScanSlot, reserveScanSlot } from "@/lib/billing/usage";
 import { assessRisk } from "@/lib/risk/engine";
 import { saveScan } from "@/lib/scans";
 import { MAX_IMAGE_BYTES, formatBytes, isAllowedImageType, sniffImageType } from "@/lib/validation";
@@ -63,13 +63,17 @@ export async function POST(request: Request) {
   const guestId = user ? null : await ensureGuestId();
   const owner = { userId: user?.id ?? null, guestId };
 
-  const usage = getUsage(owner);
-  if (usage.exhausted) {
+  // Claim a slot atomically. Checking the count and then writing the scan would
+  // leave a window - the whole analysis - in which a second request could pass
+  // the same check, so the slot is taken up front and given back at the end.
+  const reservation = reserveScanSlot(owner);
+  if (!reservation.allowed) {
+    const { usage } = reservation;
     return NextResponse.json(
       {
         error:
           usage.plan.id === "pro"
-            ? `You have used all ${usage.limit} analyses included this month.`
+            ? `You have used all ${usage.limit} analyses included in this billing period.`
             : `You have used your ${usage.limit} free analyses this month.`,
         code: "quota_exceeded",
         plan: usage.plan.id,
@@ -81,21 +85,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  // The declared Content-Type is client-controlled; trust the magic bytes.
-  const sniffed = sniffImageType(bytes);
-  if (!sniffed) {
-    return NextResponse.json(
-      { error: "That file does not look like a real image. Upload a PNG, JPEG, WebP or GIF." },
-      { status: 415 },
-    );
-  }
-
-  const rawContext = form.get("context");
-  const userContext =
-    typeof rawContext === "string" ? rawContext.slice(0, MAX_CONTEXT_CHARS) : undefined;
-
   try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // The declared Content-Type is client-controlled; trust the magic bytes.
+    const sniffed = sniffImageType(bytes);
+    if (!sniffed) {
+      return NextResponse.json(
+        { error: "That file does not look like a real image. Upload a PNG, JPEG, WebP or GIF." },
+        { status: 415 },
+      );
+    }
+
+    const rawContext = form.get("context");
+    const userContext =
+      typeof rawContext === "string" ? rawContext.slice(0, MAX_CONTEXT_CHARS) : undefined;
+
     const provider = getAiProvider();
     const extraction = await provider.analyzeImage({
       base64: Buffer.from(bytes).toString("base64"),
@@ -124,5 +128,10 @@ export async function POST(request: Request) {
       { error: "Something went wrong while analysing that screenshot. Please try again." },
       { status: 500 },
     );
+  } finally {
+    // Released after the scan row is written, so the slot is never unaccounted
+    // for: either the reservation or the saved scan is holding it at all times.
+    // On a failure or a rejected file, nothing is charged.
+    releaseScanSlot(reservation.id);
   }
 }

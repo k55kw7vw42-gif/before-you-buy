@@ -145,6 +145,12 @@ that a **forged** signature and an **unsigned** payload are both rejected and gr
 It also covers duplicate deliveries, cancellation lapsing the entitlement, and that no secret
 appears in the rendered HTML or the server log.
 
+Two of its sections are worth knowing about. **Concurrency** fires eight simultaneous scans
+from a fresh Free account and asserts exactly three succeed — with the reservation removed,
+five get through, so the check genuinely bites. **Billing-period allowance** asserts the
+window switches to Stripe's period on upgrade and that scans from before the paid period do
+not count against it.
+
 `test:vision` is the one to run after changing anything in `src/lib/ai/`. It starts a stub
 Anthropic endpoint, points the app at it with `ANTHROPIC_BASE_URL`, uploads a real PNG, and
 asserts on **both** sides of the call: that the screenshot bytes really are attached to the
@@ -198,17 +204,33 @@ most reliably.
 | | Free | Pro |
 | --- | --- | --- |
 | Price | $0 | $9.99/month |
-| Screenshot analyses | 3 per month | 100 per month |
+| Screenshot analyses | 3 per calendar month | 100 per billing period |
 | Link checks | Unlimited | Unlimited |
 
 Only screenshot analyses are metered, because those are what call the vision model. Link
-checks are deterministic and cost nothing to run. Allowances reset on the first of each
-calendar month (UTC).
+checks are deterministic and cost nothing to run.
 
-**Usage is counted from the `scans` table itself** rather than a separate counter, so the
+**Allowances follow the billing period on Pro, and the calendar month otherwise.** A
+subscriber's window is the period Stripe is billing them for; everyone else has no billing
+period, so the UTC calendar month is used. This matters: on a pure calendar month, someone
+subscribing on the 28th would get a full 100 analyses for the last few days of that month and
+another 100 on the 1st — two allowances for one payment. Upgrading therefore starts a fresh
+allowance immediately, which is what the payment buys. If a stored period has elapsed, or a
+subscription is not active, the calendar month is used instead.
+
+**Usage is counted from the `scans` table itself** rather than a running counter, so the
 number a user sees can never drift from the scans they actually have. A scan row is only
 written after the analysis succeeds, so rejected uploads and failed calls are not charged.
-The quota is checked *before* the vision model is called, so an over-limit request costs
+
+**The limit is enforced with a reservation, not a bare count.** Counting completed scans is
+enough to *display* usage but not to *enforce* a cap: an analysis takes seconds, and two
+requests that both check before either writes would both be allowed. So a request first
+claims a row in `scan_reservations` inside a single `BEGIN IMMEDIATE` transaction — the count
+and the insert are one atomic step, so racing requests are serialised and the second sees the
+first's claim. The allowance is spent by completed scans *plus* live reservations. The slot is
+released once the scan row is written (it now counts in the reservation's place) or as soon as
+the attempt fails, and a reservation left behind by a dead process lapses after five minutes.
+The quota is claimed *before* the vision model is called, so an over-limit request costs
 nothing.
 
 **Nothing but Stripe can grant Pro.** `POST /api/billing/webhook` verifies the Stripe
@@ -331,7 +353,9 @@ committing fraud. A low score is not an endorsement.
 - Signed-out visitors get the Free allowance tracked against a guest cookie, so clearing
   cookies resets it. Accounts are the real enforcement boundary; requiring sign-in to scan
   would close the gap at the cost of the current no-signup-needed first run.
-- The quota is checked and then the scan is written, so two simultaneous requests can both
-  pass the check. The existing rate limiter bounds how far that can go; a transaction around
-  the check and insert would close it.
-- Allowances run on the calendar month rather than the subscriber's billing period.
+- Reservations make the limit safe against concurrent requests within one database. The
+  `BEGIN IMMEDIATE` transaction also holds across processes sharing the same SQLite file; a
+  deployment that shards users over separate databases would need the reservation to live
+  wherever that sharding is resolved.
+- A reservation held by a process that dies is not released until it lapses (five minutes), so
+  in that window the slot stays spent.

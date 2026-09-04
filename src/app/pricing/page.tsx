@@ -105,7 +105,10 @@ export default async function PricingPage({
             checks are free and unlimited on every plan.
           </dd>
           <dt>When does my allowance reset?</dt>
-          <dd>On the first day of each calendar month.</dd>
+          <dd>
+            On Free, on the first day of each calendar month. On Pro, at the start of each
+            billing period - so a month from the day you subscribed, not on the 1st.
+          </dd>
           <dt>Can I cancel?</dt>
           <dd>
             Yes, any time, from{" "}

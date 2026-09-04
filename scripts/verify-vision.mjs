@@ -164,7 +164,31 @@ const upstream = createServer((req, res) => {
   });
 });
 
+/**
+ * Refuse to run against someone else's server. A leftover process from an
+ * earlier crashed run would otherwise answer on this port, and the suite would
+ * silently test a stale build.
+ */
+async function requirePortFree(port) {
+  try {
+    await fetch("http://127.0.0.1:" + port + "/", {
+      redirect: "manual",
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    return; // Nothing listening: what we want.
+  }
+  console.error(
+    "\nPort " + port + " is already in use - something is answering there.\n" +
+      "That is probably a leftover server from an earlier run, and testing against\n" +
+      "it would exercise a stale build. Stop it and try again:\n" +
+      "  pkill -f next-server\n",
+  );
+  process.exit(1);
+}
+
 async function main() {
+  await requirePortFree(APP_PORT);
   await new Promise((r) => upstream.listen(UPSTREAM_PORT, "127.0.0.1", r));
   console.log(`Fake Anthropic endpoint on :${UPSTREAM_PORT}`);
 

@@ -91,10 +91,17 @@ const MODEL_REPLY = {
   notes: [],
 };
 
+let visionMode = "ok";
+
 const anthropicStub = createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    if (visionMode === "fail") {
+      res.writeHead(500, { "content-type": "application/json" });
+      res.end(JSON.stringify({ type: "error", error: { type: "api_error", message: "boom" } }));
+      return;
+    }
     res.writeHead(200, { "content-type": "application/json" });
     res.end(
       JSON.stringify({
@@ -118,11 +125,16 @@ const stripeCalls = [];
 const sessions = new Map();
 const subscriptions = new Map();
 
-function futureIso(days = 30) {
+function unixIn(days) {
   return Math.floor((Date.now() + days * 86_400_000) / 1000);
 }
 
-function makeSubscription(id, customer, userId, status = "active", periodEnd = futureIso()) {
+/**
+ * Periods start now and run 30 days, exactly as Stripe would for a fresh
+ * subscription. That start time is what the billing-period assertions below
+ * check the app against.
+ */
+function makeSubscription(id, customer, userId, status = "active") {
   const sub = {
     id,
     object: "subscription",
@@ -130,7 +142,12 @@ function makeSubscription(id, customer, userId, status = "active", periodEnd = f
     customer,
     cancel_at_period_end: false,
     metadata: { userId },
-    items: { object: "list", data: [{ id: "si_test", current_period_end: periodEnd }] },
+    items: {
+      object: "list",
+      data: [
+        { id: "si_test", current_period_start: unixIn(0), current_period_end: unixIn(30) },
+      ],
+    },
   };
   subscriptions.set(id, sub);
   return sub;
@@ -222,7 +239,31 @@ function signedHeaders(payload) {
   };
 }
 
+/**
+ * Refuse to run against someone else's server. A leftover process from an
+ * earlier crashed run would otherwise answer on this port, and the suite would
+ * silently test a stale build.
+ */
+async function requirePortFree(port) {
+  try {
+    await fetch("http://127.0.0.1:" + port + "/", {
+      redirect: "manual",
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    return; // Nothing listening: what we want.
+  }
+  console.error(
+    "\nPort " + port + " is already in use - something is answering there.\n" +
+      "That is probably a leftover server from an earlier run, and testing against\n" +
+      "it would exercise a stale build. Stop it and try again:\n" +
+      "  pkill -f next-server\n",
+  );
+  process.exit(1);
+}
+
 async function main() {
+  await requirePortFree(APP_PORT);
   await new Promise((r) => anthropicStub.listen(ANTHROPIC_PORT, "127.0.0.1", r));
   await new Promise((r) => stripeStub.listen(STRIPE_PORT, "127.0.0.1", r));
   console.log(`Stubs up: vision :${ANTHROPIC_PORT}, stripe :${STRIPE_PORT}`);
@@ -277,7 +318,7 @@ async function main() {
         ...options,
         headers,
         redirect: "manual",
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(60_000),
       });
       absorb(r);
       return r;
@@ -357,6 +398,13 @@ async function main() {
 
     // ---- Checkout ---------------------------------------------------------
     section("Stripe Checkout");
+    // Stripe timestamps have one-second granularity, and the stubs answer in
+    // milliseconds, so without this the free scans above and the subscription's
+    // period start land in the same second and the scans would sit just inside
+    // the paid period. A real upgrade follows earlier scans by minutes or days;
+    // crossing one second boundary models that faithfully.
+    await new Promise((r) => setTimeout(r, 1200));
+
     const checkout = await req("/api/billing/checkout", { method: "POST" });
     const checkoutData = await json(checkout);
     check("checkout returns a Stripe URL", checkout.status === 200 && !!checkoutData?.url, `status ${checkout.status}`);
@@ -413,8 +461,26 @@ async function main() {
     st = await status();
     check("the user is now on Pro", st?.plan === "pro", st?.plan);
     check("the Pro allowance is 100", st?.limit === 100, String(st?.limit));
-    check("earlier usage carries over", st?.used === 3, `used ${st?.used}`);
-    check("remaining reflects the new limit", st?.remaining === 97, `remaining ${st?.remaining}`);
+
+    // ---- The allowance now follows the billing period ---------------------
+    section("Billing-period allowance");
+    check("the allowance switches to the billing period", st?.periodBasis === "billing", st?.periodBasis);
+    const subNow = subscriptions.get(sessions.get(sessionId).subscription);
+    const expectedStart = new Date(subNow.items.data[0].current_period_start * 1000).toISOString();
+    const expectedEnd = new Date(subNow.items.data[0].current_period_end * 1000).toISOString();
+    check("the period start comes from Stripe", st?.periodStart === expectedStart, st?.periodStart);
+    check("the period end comes from Stripe", st?.periodEnd === expectedEnd, st?.periodEnd);
+    check(
+      "the period is not the calendar month",
+      new Date(st.periodEnd).getUTCDate() !== 1,
+      st?.periodEnd,
+    );
+    check(
+      "scans from before the paid period do not count against it",
+      st?.used === 0,
+      `used ${st?.used}`,
+    );
+    check("the full paid allowance is available", st?.remaining === 100, `remaining ${st?.remaining}`);
 
     const replay = await req("/api/billing/webhook", {
       method: "POST",
@@ -427,11 +493,22 @@ async function main() {
     section("Pro");
     const proScan = await scan();
     check("a Pro user can scan past the free limit", proScan.status === 200, `status ${proScan.status}`);
-    check("usage keeps counting on Pro", (await status())?.used === 4);
+    check("usage keeps counting on Pro", (await status())?.used === 1, `used ${(await status())?.used}`);
+
+    // A failed analysis must not spend the allowance.
+    visionMode = "fail";
+    const failed = await scan();
+    visionMode = "ok";
+    check("a failed analysis returns an error", failed.status >= 500, `status ${failed.status}`);
+    check(
+      "a failed analysis does not spend the allowance",
+      (await status())?.used === 1,
+      `used ${(await status())?.used}`,
+    );
 
     const account = await visibleText("/account");
     check("the account page shows the Pro plan", account.includes("Pro plan"));
-    check("the account page shows monthly usage", /4<\/strong> of 100/.test(account));
+    check("the account page shows usage for the period", /1<\/strong> of 100/.test(account));
 
     const portal = await req("/api/billing/portal", { method: "POST" });
     check("a Pro user can open the billing portal", portal.status === 200, `status ${portal.status}`);
@@ -463,6 +540,70 @@ async function main() {
       afterCancel.status === 402,
       `status ${afterCancel.status}`,
     );
+
+    // ---- Concurrency ------------------------------------------------------
+    // The check and the write are separated by the whole analysis, so a naive
+    // count-then-insert lets simultaneous requests all pass the same check.
+    // A fresh Free account fires its scans at once: exactly 3 may succeed.
+    section("Concurrency");
+    const racer = new Map();
+    const racerReq = async (path, options = {}) => {
+      const headers = new Headers(options.headers ?? {});
+      const c = [...racer].map(([k, v]) => `${k}=${v}`).join("; ");
+      if (c) headers.set("cookie", c);
+      const r = await fetch(`${APP}${path}`, {
+        ...options,
+        headers,
+        redirect: "manual",
+        signal: AbortSignal.timeout(60_000),
+      });
+      for (const raw of r.headers.getSetCookie?.() ?? []) {
+        const [pair] = raw.split(";");
+        const i = pair.indexOf("=");
+        racer.set(pair.slice(0, i).trim(), pair.slice(i + 1).trim());
+      }
+      return r;
+    };
+
+    await racerReq("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: `race-${Date.now()}@example.test`,
+        password: "correct-horse-battery",
+      }),
+    });
+
+    const BURST = 8;
+    const burst = await Promise.all(
+      Array.from({ length: BURST }, () => {
+        const form = new FormData();
+        form.append("image", new Blob([png], { type: "image/png" }), "offer.png");
+        return racerReq("/api/analyze/image", { method: "POST", body: form }).then(async (r) => ({
+          status: r.status,
+        }));
+      }),
+    );
+
+    const granted = burst.filter((r) => r.status === 200).length;
+    const refused = burst.filter((r) => r.status === 402).length;
+    check(
+      `exactly 3 of ${BURST} simultaneous scans are allowed`,
+      granted === 3,
+      `${granted} allowed, ${refused} refused, statuses: ${burst.map((r) => r.status).join(",")}`,
+    );
+    check("every other simultaneous scan is refused with 402", refused === BURST - 3, `${refused}`);
+
+    const racerStatus = await racerReq("/api/billing/status").then((r) => r.json());
+    check(
+      "the allowance is not overspent after the burst",
+      racerStatus.used === 3 && racerStatus.remaining === 0,
+      `used ${racerStatus.used}, remaining ${racerStatus.remaining}`,
+    );
+
+    // Reservations must not leak: once the burst settles, nothing is held.
+    const settled = await racerReq("/api/billing/status").then((r) => r.json());
+    check("no reservation is left holding a slot", settled.used === 3, `used ${settled.used}`);
 
     // ---- Secrets stay server-side ----------------------------------------
     section("Secrets");

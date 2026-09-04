@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { PLANS } from "@/lib/billing/plans";
 import { isBillingConfigured } from "@/lib/billing/stripe";
 import { getEntitlement } from "@/lib/billing/subscription";
-import { formatResetDate, getUsage } from "@/lib/billing/usage";
+import { formatResetDate, getUsage, periodLabel } from "@/lib/billing/usage";
 import { UpgradeButton } from "@/components/UpgradeButton";
 import { ManageBillingButton } from "@/components/ManageBillingButton";
 
@@ -70,7 +70,7 @@ export default async function AccountPage() {
       </section>
 
       <section className="card">
-        <h2>This month&apos;s usage</h2>
+        <h2>Usage {periodLabel(usage.period)}</h2>
         <p className="usage-headline">
           <strong>{usage.used}</strong> of {usage.limit} screenshot analyses used
         </p>
