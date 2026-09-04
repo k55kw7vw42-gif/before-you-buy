@@ -129,7 +129,7 @@ variables are needed to take payments. Everything else has a working default. It
 
 ```bash
 npm run typecheck      # tsc --noEmit
-npm run test:unit      # AI response parsing + risk scoring bands
+npm run test:unit      # AI response parsing, risk scoring bands, schema migration
 npm run build
 npm run test:vision    # the real vision path, against a local stub (no credits spent)
 npm run test:billing   # the whole paid flow, against local stubs (no charges made)
@@ -150,6 +150,12 @@ from a fresh Free account and asserts exactly three succeed — with the reserva
 five get through, so the check genuinely bites. **Billing-period allowance** asserts the
 window switches to Stripe's period on upgrade and that scans from before the paid period do
 not count against it.
+
+`test:unit` also covers the one path that touches real user data: it builds a database with
+the previous release's schema, holding a live Pro subscriber, then opens it with the current
+code and asserts the column and table are added in place, existing rows survive, and the
+subscriber keeps Pro. Every other suite starts from an empty database, so that path would
+otherwise go unexercised.
 
 `test:vision` is the one to run after changing anything in `src/lib/ai/`. It starts a stub
 Anthropic endpoint, points the app at it with `ANTHROPIC_BASE_URL`, uploads a real PNG, and
