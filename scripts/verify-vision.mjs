@@ -229,6 +229,23 @@ async function main() {
     };
     const cookie = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
 
+    // Screenshot analysis is account-only now, so sign in before scanning.
+    const signup = await fetch(`${APP}/api/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: `vision-${Date.now()}@example.test`,
+        password: "correct-horse-battery",
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    absorb(signup);
+    if (signup.status !== 200) {
+      console.log(`\nCould not sign up for the vision test (status ${signup.status}).`);
+      process.exitCode = 1;
+      return;
+    }
+
     const png = makePng();
     async function scan() {
       const form = new FormData();

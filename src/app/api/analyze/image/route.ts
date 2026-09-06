@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { AiProviderError, getAiProvider } from "@/lib/ai";
-import { ensureGuestId, getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { releaseScanSlot, reserveScanSlot } from "@/lib/billing/usage";
 import { assessRisk } from "@/lib/risk/engine";
@@ -21,7 +21,21 @@ const MAX_CONTEXT_CHARS = 1000;
 export async function POST(request: Request) {
   const user = await getCurrentUser();
 
-  const limit = checkRateLimit(`analyze:${rateLimitKey(request, user?.id ?? null)}`);
+  // Screenshot analysis is the one thing here that costs money to run, so it is
+  // for account holders only. An anonymous allowance would be tracked by cookie,
+  // which anyone can clear to get another one. Link checks stay open to
+  // everybody - they call no model and cost nothing.
+  if (!user) {
+    return NextResponse.json(
+      {
+        error: "Sign in to scan a screenshot. Checking a link needs no account.",
+        code: "auth_required",
+      },
+      { status: 401 },
+    );
+  }
+
+  const limit = checkRateLimit(`analyze:${rateLimitKey(request, user.id)}`);
   if (!limit.allowed) {
     return NextResponse.json(
       {
@@ -58,10 +72,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // Resolve the owner before spending anything: the plan allowance is checked
-  // before the vision model is called, never after.
-  const guestId = user ? null : await ensureGuestId();
-  const owner = { userId: user?.id ?? null, guestId };
+  // The scan always belongs to the signed-in account.
+  const owner = { userId: user.id, guestId: null };
 
   // Claim a slot atomically. Checking the count and then writing the scan would
   // leave a window - the whole analysis - in which a second request could pass

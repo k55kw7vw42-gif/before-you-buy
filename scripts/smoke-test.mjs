@@ -191,11 +191,62 @@ async function main() {
     );
   }
 
-  // -- Core loop as a guest ----------------------------------------------
-  section("Core loop (guest)");
+  // -- Screenshot scanning is for account holders -------------------------
+  // It calls the vision model, so it costs money to run. An anonymous allowance
+  // could only be tracked by cookie, and a cookie can be cleared for another one.
+  section("Scanning requires an account");
   const guest = newJar();
+
+  const anonScan = await scanImage(guest, GIFT_CARD_CASE);
+  check(
+    "an anonymous screenshot scan is refused",
+    anonScan.response.status === 401,
+    `status ${anonScan.response.status}`,
+  );
+  check("the refusal is machine-readable", anonScan.data?.code === "auth_required");
+  check(
+    "the refusal points at the free link checker",
+    /link/i.test(anonScan.data?.error ?? ""),
+    anonScan.data?.error,
+  );
+
+  const anonScanPage = await request(guest, "/scan").then((r) => r.text());
+  check(
+    "the scan page invites an anonymous visitor to sign up",
+    /Create an account to scan/.test(anonScanPage),
+  );
+  check(
+    "it does not show an error to someone who has done nothing wrong",
+    !/went wrong|refused|denied/i.test(anonScanPage),
+  );
+
+  // Link checks stay open to everybody. These two also give the guest scans
+  // that the signup hand-over is checked against below.
+  const guestLinkA = await scanLink(guest, "https://example.com/guest-one");
+  const guestLinkB = await scanLink(guest, "https://example.com/guest-two");
+  check(
+    "an anonymous visitor can still check links",
+    guestLinkA.response.status === 200 && guestLinkB.response.status === 200,
+    `${guestLinkA.response.status}, ${guestLinkB.response.status}`,
+  );
+
+  // -- Core loop, signed in ----------------------------------------------
+  section("Core loop (signed in)");
+  const stamp = Date.now();
+  const aliceEmail = `alice-${stamp}@example.test`;
+  const signup = await request(guest, "/api/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: aliceEmail, password: "correct-horse-battery" }),
+  });
+  check("signup succeeds", signup.status === 200, `status ${signup.status}`);
+
   const { response: scanResponse, data: scanData } = await scanImage(guest, GIFT_CARD_CASE);
-  check("screenshot scan succeeds", scanResponse.status === 200 && !!scanData?.id, `status ${scanResponse.status}`);
+  check(
+    "screenshot scan succeeds once signed in",
+    scanResponse.status === 200 && !!scanData?.id,
+    `status ${scanResponse.status}`,
+  );
 
   if (!scanData?.id) {
     console.log("\nCannot continue without a successful scan. Response was:", scanData);
@@ -321,16 +372,7 @@ async function main() {
 
   // -- Accounts -----------------------------------------------------------
   section("Accounts");
-  const stamp = Date.now();
-  const alice = guest; // the guest signs up, so their scans should carry over
-  const aliceEmail = `alice-${stamp}@example.test`;
-
-  const signup = await request(alice, "/api/auth/signup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: aliceEmail, password: "correct-horse-battery" }),
-  });
-  check("signup succeeds", signup.status === 200, `status ${signup.status}`);
+  const alice = guest; // signed up above, after running link checks as a guest
 
   const dupe = await request(newJar(), "/api/auth/signup", {
     method: "POST",

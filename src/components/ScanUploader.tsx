@@ -64,6 +64,13 @@ export function ScanUploader() {
     try {
       const response = await fetch("/api/analyze/image", { method: "POST", body });
       const data = (await response.json()) as { id?: string; error?: string; code?: string };
+      if (response.status === 401 || data.code === "auth_required") {
+        // The session expired while the page was open; reload into the sign-in panel.
+        setError(data.error ?? "Sign in to scan a screenshot.");
+        setBusy(false);
+        router.refresh();
+        return;
+      }
       if (response.status === 402 || data.code === "quota_exceeded") {
         // The allowance ran out - refresh so the page swaps in the upgrade panel.
         setQuotaHit(true);

@@ -1,8 +1,9 @@
 import { ScanUploader } from "@/components/ScanUploader";
 import { LimitReached } from "@/components/LimitReached";
+import { SignInToScan } from "@/components/SignInToScan";
 import { UsageMeter } from "@/components/UsageMeter";
 import { isDemoMode } from "@/lib/ai";
-import { getCurrentUser, getGuestId } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { isBillingConfigured } from "@/lib/billing/stripe";
 import { getUsage } from "@/lib/billing/usage";
 
@@ -11,8 +12,7 @@ export const metadata = { title: "Scan a screenshot - Before You Pay" };
 
 export default async function ScanPage() {
   const user = await getCurrentUser();
-  const guestId = user ? null : await getGuestId();
-  const usage = getUsage({ userId: user?.id ?? null, guestId });
+  const usage = getUsage({ userId: user?.id ?? null, guestId: null });
 
   return (
     <div className="stack">
@@ -24,7 +24,7 @@ export default async function ScanPage() {
         </p>
       </div>
 
-      <UsageMeter usage={usage} signedIn={!!user} />
+      {user && <UsageMeter usage={usage} signedIn />}
 
       {isDemoMode() && (
         <p className="notice-strip">
@@ -33,12 +33,10 @@ export default async function ScanPage() {
         </p>
       )}
 
-      {usage.exhausted ? (
-        <LimitReached
-          usage={usage}
-          signedIn={!!user}
-          billingConfigured={isBillingConfigured()}
-        />
+      {!user ? (
+        <SignInToScan />
+      ) : usage.exhausted ? (
+        <LimitReached usage={usage} signedIn billingConfigured={isBillingConfigured()} />
       ) : (
         <ScanUploader />
       )}
