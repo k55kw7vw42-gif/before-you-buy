@@ -24,8 +24,26 @@ export default async function ScanPage() {
         </p>
       </div>
 
+      {/* Usage meter */}
       {user && <UsageMeter usage={usage} signedIn />}
 
+      {/* 🟡 Upgrade hint قبل ما يخلص */}
+      {user && !usage.exhausted && (
+        <div className="bg-yellow-400 text-black rounded-xl p-3 mt-3 text-center">
+          <p className="font-semibold text-sm">
+            ⚠️ {usage.remaining} scans left this month
+          </p>
+
+          <button
+            onClick={() => (window.location.href = "/pricing")}
+            className="mt-2 text-sm underline font-bold"
+          >
+            Upgrade to Pro
+          </button>
+        </div>
+      )}
+
+      {/* Demo mode */}
       {isDemoMode() && (
         <p className="notice-strip">
           Demo mode: no AI provider is configured, so the screenshot itself is not read. Anything
@@ -33,6 +51,7 @@ export default async function ScanPage() {
         </p>
       )}
 
+      {/* الحالات */}
       {!user ? (
         <SignInToScan />
       ) : usage.exhausted ? (
