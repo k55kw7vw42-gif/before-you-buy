@@ -66,13 +66,3 @@ export function getStripe(): Stripe | null {
   cached = createStripeClient(config.secretKey);
   return cached;
 }
-
-/**
- * Absolute base URL for Checkout return links. Prefers APP_URL (needed behind a
- * proxy that rewrites the host) and otherwise trusts the request's own origin.
- */
-export function appBaseUrl(request: Request): string {
-  const configured = process.env.APP_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-  return new URL(request.url).origin;
-}

@@ -136,7 +136,7 @@ async function main() {
       GOOGLE_CLIENT_ID: "test-client-id.apps.googleusercontent.com",
       GOOGLE_CLIENT_SECRET: "test-client-secret",
       GOOGLE_OAUTH_BASE: `http://127.0.0.1:${GOOGLE_PORT}`,
-      APP_URL: APP,
+      NEXTAUTH_URL: APP,
       DATABASE_PATH: "./data/verify-google.db",
       RATE_LIMIT_MAX: "500",
     },
@@ -305,6 +305,47 @@ async function main() {
       (history?.scans?.length ?? 0) >= 1,
       `${history?.scans?.length} scans`,
     );
+
+    // ---- The base URL must never come from the request --------------------
+    // This is the actual production bug: behind a proxy, request.url / the Host
+    // header is the proxy's internal address, not the public one. If baseUrl()
+    // ever regresses to deriving from the request, this must fail.
+    section("Base URL never comes from the request");
+    const spoofed = newJar();
+    const spoofedStart = await req(spoofed, "/api/auth/google?next=/scan", {
+      headers: {
+        host: "0.0.0.0:10000",
+        "x-forwarded-host": "attacker.example",
+        "x-forwarded-proto": "http",
+      },
+    });
+    const spoofedTarget = new URL(spoofedStart.headers.get("location") ?? "", APP);
+    const spoofedRedirectUri = spoofedTarget.searchParams.get("redirect_uri") ?? "";
+    check(
+      "redirect_uri uses the configured public URL, not the Host header",
+      spoofedRedirectUri.startsWith(APP),
+      spoofedRedirectUri,
+    );
+    check("redirect_uri does not contain 0.0.0.0", !spoofedRedirectUri.includes("0.0.0.0"));
+    check(
+      "redirect_uri does not reflect a forwarded/spoofed host",
+      !spoofedRedirectUri.includes("attacker.example"),
+      spoofedRedirectUri,
+    );
+
+    const spoofedState = spoofedTarget.searchParams.get("state");
+    const spoofedCallback = await req(
+      spoofed,
+      `/api/auth/google/callback?code=code-new&state=${spoofedState}`,
+      { headers: { host: "0.0.0.0:10000", "x-forwarded-host": "attacker.example" } },
+    );
+    const spoofedLocation = spoofedCallback.headers.get("location") ?? "";
+    check(
+      "the post-login redirect also uses the configured URL",
+      spoofedLocation.startsWith(APP),
+      spoofedLocation,
+    );
+    check("the post-login redirect does not leak the spoofed host", !spoofedLocation.includes("attacker.example"));
 
     // ---- Secrets stay server-side -----------------------------------------
     section("Secrets");

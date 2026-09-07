@@ -166,7 +166,8 @@ compiled into the browser bundle.
 | `STRIPE_SECRET_KEY` | For payments | — | Secret API key (`sk_test_…` / `sk_live_…`). |
 | `STRIPE_PRICE_ID` | For payments | — | The recurring $9.99/month Price for Pro (`price_…`). |
 | `STRIPE_WEBHOOK_SECRET` | For payments | — | Signing secret for the webhook endpoint (`whsec_…`). |
-| `APP_URL` | No | request origin | Base URL for Checkout return links. Only needed behind a proxy. |
+| `NEXTAUTH_URL` | **Yes** | — | Public base URL, e.g. `https://beforeyoupay.onrender.com`. Built into the Google redirect_uri and Stripe return links. Never derived from the request (the request's origin behind Render's proxy is unreachable from outside). |
+| `APP_URL` | No | — | Older name for the same value; still read if `NEXTAUTH_URL` is unset. |
 | `STRIPE_API_BASE` | No | Stripe's API | Test-only override; `npm run test:billing` points it at a stub. |
 | `DATABASE_PATH` | No | `./data/before-you-pay.db` | SQLite file location. Created on first run. |
 | `RATE_LIMIT_MAX` | No | `10` | Analyses allowed per window, per user or per IP. |

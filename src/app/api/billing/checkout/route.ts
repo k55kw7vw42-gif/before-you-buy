@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { appBaseUrl, getBillingConfig, getStripe } from "@/lib/billing/stripe";
+import { baseUrl } from "@/lib/base-url";
+import { getBillingConfig, getStripe } from "@/lib/billing/stripe";
 import { getSubscription, upsertSubscription } from "@/lib/billing/subscription";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
       upsertSubscription({ userId: user.id, stripeCustomerId: customerId });
     }
 
-    const base = appBaseUrl(request);
+    const base = baseUrl();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,

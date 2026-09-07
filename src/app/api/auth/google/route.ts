@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { appBaseUrl } from "@/lib/billing/stripe";
+import { baseUrl } from "@/lib/base-url";
 import {
   OAUTH_NEXT_COOKIE,
   OAUTH_STATE_COOKIE,
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const config = getGoogleConfig();
   if (!config) {
-    return NextResponse.redirect(new URL("/login?error=google_unavailable", appBaseUrl(request)));
+    return NextResponse.redirect(new URL("/login?error=google_unavailable", baseUrl()));
   }
 
   const state = randomBytes(24).toString("hex");
@@ -49,6 +49,6 @@ export async function GET(request: Request) {
     maxAge: 600,
   });
 
-  const redirectUri = googleRedirectUri(appBaseUrl(request));
+  const redirectUri = googleRedirectUri(baseUrl());
   return NextResponse.redirect(buildAuthorizationUrl(config, redirectUri, state));
 }
