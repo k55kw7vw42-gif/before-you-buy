@@ -1,12 +1,13 @@
 export default async function BillingSuccessPage({
   searchParams,
 }: {
-  searchParams: { session_id?: string };
+  searchParams: Promise<{ session_id?: string }>; // ✅ لازم Promise
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account");
 
-  const { session_id: sessionId } = searchParams;
+  const { session_id: sessionId } = await searchParams; // ✅ await مهم
+
   const stripe = getStripe();
   let reconciled = false;
 
