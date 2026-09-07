@@ -17,7 +17,8 @@
     "test:vision": "node scripts/verify-vision.mjs",
     "test:billing": "node scripts/verify-billing.mjs",
     "backfill:periods": "node scripts/backfill-subscription-periods.mjs",
-    "test:backfill": "node scripts/verify-backfill.mjs"
+    "test:backfill": "node scripts/verify-backfill.mjs",
+    "test:google": "node scripts/verify-google.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

@@ -134,6 +134,17 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string }> = [
     column: "current_period_start",
     ddl: "ALTER TABLE subscriptions ADD COLUMN current_period_start TEXT",
   },
+  {
+    // Set for accounts created through Google. Null for password accounts.
+    table: "users",
+    column: "google_id",
+    ddl: "ALTER TABLE users ADD COLUMN google_id TEXT",
+  },
+];
+
+/** Indexes over migrated columns, which can only be created once they exist. */
+const POST_MIGRATION_DDL = [
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id) WHERE google_id IS NOT NULL",
 ];
 
 function migrate(db: DatabaseSync): void {
@@ -141,6 +152,7 @@ function migrate(db: DatabaseSync): void {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === column)) db.exec(ddl);
   }
+  for (const ddl of POST_MIGRATION_DDL) db.exec(ddl);
 }
 
 function open(): DatabaseSync {

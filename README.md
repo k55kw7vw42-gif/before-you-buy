@@ -160,6 +160,9 @@ compiled into the browser bundle.
 | `AI_PROVIDER` | No | `anthropic` if a key is set, else `mock` | Which provider the AI service layer uses: `anthropic` or `mock`. |
 | `ANTHROPIC_MODEL` | No | `claude-opus-5` | Vision model id. |
 | `ANTHROPIC_BASE_URL` | No | Anthropic's API | Read by the SDK itself. Only used to point the app at a stub; leave unset normally. |
+| `GOOGLE_CLIENT_ID` | For Google sign-in | — | OAuth client id. Without it the button is hidden. |
+| `GOOGLE_CLIENT_SECRET` | For Google sign-in | — | OAuth client secret. Server-side only. |
+| `GOOGLE_OAUTH_BASE` | No | Google's endpoints | Test-only override; `npm run test:google` points it at a stub. |
 | `STRIPE_SECRET_KEY` | For payments | — | Secret API key (`sk_test_…` / `sk_live_…`). |
 | `STRIPE_PRICE_ID` | For payments | — | The recurring $9.99/month Price for Pro (`price_…`). |
 | `STRIPE_WEBHOOK_SECRET` | For payments | — | Signing secret for the webhook endpoint (`whsec_…`). |
@@ -184,6 +187,7 @@ npm run test:unit      # AI response parsing, risk scoring bands, schema migrati
 npm run build
 npm run test:vision    # the real vision path, against a local stub (no credits spent)
 npm run test:billing   # the whole paid flow, against local stubs (no charges made)
+npm run test:google    # Sign in with Google, against a stubbed Google
 npm run test:backfill  # the one-off period backfill, against seeded Pro data
 npm start              # then, in another terminal:
 npm run test:smoke     # end-to-end HTTP checks against a running server
@@ -256,6 +260,28 @@ most reliably.
   otherwise rejected images surface as a plain "try a smaller or clearer screenshot".
 - **Refusals** — a refusal is an HTTP 200 with no usable content, so `stop_reason` is checked
   before the content blocks are read.
+
+### Signing in
+
+Two ways in: email and password, or Google. Both end at the same session cookie, and an
+account can have both.
+
+Screenshot scanning requires an account — it calls the vision model, so it costs money to run,
+and an anonymous allowance could only be tracked by a cookie anyone can clear. **Link checks
+stay open to everyone**, so a visitor can try the tool before signing up. Scans run as a guest
+are handed to the account on signup.
+
+**Google** uses the OAuth authorization-code flow. A random `state` goes into an httpOnly
+cookie and is checked on the way back, so a callback that did not start in this browser is
+refused. The profile is read from Google's userinfo endpoint with the access token; the client
+secret never leaves the server, and no Google SDK loads in the browser.
+
+Accounts are matched by Google's stable account id first, then by email — so signing up with a
+password and later using Google lands in the same account rather than a duplicate. Matching by
+email is only safe because Google marks the address verified, and **a profile whose email
+Google has not verified is refused** rather than being allowed to claim an existing account.
+A Google-only account stores a sentinel in place of a password hash, which no password can
+ever match.
 
 ### Plans, usage and entitlement
 

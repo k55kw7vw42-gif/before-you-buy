@@ -148,3 +148,56 @@ export async function ensureGuestId(): Promise<string> {
   });
   return id;
 }
+
+/**
+ * Stored in place of a password hash for accounts that sign in with Google.
+ * `verifyPassword` requires the "scrypt" scheme, so this value can never match
+ * any password - a Google account cannot be logged into with one.
+ */
+const OAUTH_PASSWORD_SENTINEL = "oauth:google";
+
+interface UserRow {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+/**
+ * Finds or creates the account behind a Google profile.
+ *
+ * Matching is by Google's stable account id first, then by email so that
+ * someone who signed up with a password and later uses Google lands in the same
+ * account instead of a duplicate. Linking by email is only safe because Google
+ * told us the address is verified; the caller checks that first.
+ */
+export function findOrCreateGoogleUser(profile: {
+  googleId: string;
+  email: string;
+}): PublicUser {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const email = profile.email.trim().toLowerCase();
+
+  const byGoogleId = db
+    .prepare("SELECT id, email, created_at FROM users WHERE google_id = ?")
+    .get(profile.googleId) as UserRow | undefined;
+  if (byGoogleId) {
+    return { id: byGoogleId.id, email: byGoogleId.email, createdAt: byGoogleId.created_at };
+  }
+
+  const byEmail = db
+    .prepare("SELECT id, email, created_at FROM users WHERE email = ?")
+    .get(email) as UserRow | undefined;
+  if (byEmail) {
+    // Existing password account: attach the Google id so future sign-ins match
+    // on it directly. The password keeps working.
+    db.prepare("UPDATE users SET google_id = ? WHERE id = ?").run(profile.googleId, byEmail.id);
+    return { id: byEmail.id, email: byEmail.email, createdAt: byEmail.created_at };
+  }
+
+  const user = { id: randomUUID(), email, createdAt: now };
+  db.prepare(
+    "INSERT INTO users (id, email, password_hash, created_at, google_id) VALUES (?, ?, ?, ?, ?)",
+  ).run(user.id, user.email, OAUTH_PASSWORD_SENTINEL, user.createdAt, profile.googleId);
+  return user;
+}
