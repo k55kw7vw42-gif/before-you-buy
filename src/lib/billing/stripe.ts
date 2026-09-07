@@ -4,7 +4,7 @@ export function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
 
   return new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2024-06-20",
+    apiVersion: "2026-08-26.dahlia", // ✅ حل المشكلة
   });
 }
 
@@ -16,11 +16,10 @@ export function getBillingConfig() {
 
   return {
     priceId,
-    webhookSecret, // ✅ حل مشكلة webhook
+    webhookSecret,
   };
 }
 
-// ✅ ده اللي كان ناقص
 export function isBillingConfigured(): boolean {
   return !!process.env.STRIPE_SECRET_KEY && !!process.env.STRIPE_PRICE_ID;
 }
