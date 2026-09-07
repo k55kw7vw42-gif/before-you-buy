@@ -11,10 +11,14 @@ export function getStripe() {
 export function getBillingConfig() {
   const priceId = process.env.STRIPE_PRICE_ID;
 
-  // 👇 أهم سطر
   if (!priceId) return null;
 
   return {
     priceId,
   };
+}
+
+// ✅ الحل هنا
+export function isBillingConfigured() {
+  return !!process.env.STRIPE_SECRET_KEY && !!process.env.STRIPE_PRICE_ID;
 }
