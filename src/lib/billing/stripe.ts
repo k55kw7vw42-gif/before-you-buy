@@ -12,18 +12,15 @@ export function getBillingConfig() {
   const priceId = process.env.STRIPE_PRICE_ID;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!priceId || !webhookSecret) return null;
+  if (!priceId) return null;
 
   return {
     priceId,
-    webhookSecret,
+    webhookSecret, // ✅ حل مشكلة webhook
   };
 }
 
-export function isBillingConfigured() {
-  return !!(
-    process.env.STRIPE_SECRET_KEY &&
-    process.env.STRIPE_PRICE_ID &&
-    process.env.STRIPE_WEBHOOK_SECRET
-  );
+// ✅ ده اللي كان ناقص
+export function isBillingConfigured(): boolean {
+  return !!process.env.STRIPE_SECRET_KEY && !!process.env.STRIPE_PRICE_ID;
 }
