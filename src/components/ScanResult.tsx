@@ -3,11 +3,19 @@ import type { ScanRecord } from "@/lib/types";
 import { verdictLine } from "@/lib/risk/engine";
 import { RiskBadge } from "./RiskBadge";
 import { ScoreDial } from "./ScoreDial";
+import { ShareButton } from "./ShareButton";
 
 const SEVERITY_LABEL: Record<string, string> = {
   high: "Strong signal",
   medium: "Moderate signal",
   low: "Minor signal",
+};
+
+/** Purely decorative, alongside the badge - never the only risk indicator. */
+const VERDICT_EMOJI: Record<string, string> = {
+  low: "✅",
+  medium: "⚠️",
+  high: "⚠️",
 };
 
 function formatDate(iso: string): string {
@@ -24,19 +32,22 @@ export function ScanResult({ scan }: { scan: ScanRecord }) {
 
   return (
     <div className="stack-lg">
-      <section className="card">
-        <div className="score-panel">
+      <section className={`card verdict-hero level-${scan.level}`}>
+        <div className="verdict-emoji" aria-hidden="true">
+          {VERDICT_EMOJI[scan.level]}
+        </div>
+        <RiskBadge level={scan.level} />
+        <div className="score-panel" style={{ marginTop: "1.1rem" }}>
           <ScoreDial score={scan.score} level={scan.level} />
-          <div className="score-meta">
-            <RiskBadge level={scan.level} />
-            <h1 style={{ marginTop: "0.6rem", fontSize: "1.6rem" }}>
-              Risk Score: {scan.score}/100
-            </h1>
-            <p className="verdict">{verdictLine(scan.level, risky.length)}</p>
-          </div>
+        </div>
+        <h1 style={{ marginTop: "1.1rem", fontSize: "1.7rem" }}>Risk Score: {scan.score}/100</h1>
+        <p className="verdict-line">{verdictLine(scan.level, risky.length)}</p>
+
+        <div className="share-row">
+          <ShareButton score={scan.score} level={scan.level} />
         </div>
 
-        <p className="small muted" style={{ marginTop: "1.25rem", marginBottom: 0 }}>
+        <p className="small muted" style={{ marginTop: "1.5rem", marginBottom: 0 }}>
           {scan.scanType === "link" ? "Link checked" : "Screenshot"}:{" "}
           <span style={{ overflowWrap: "anywhere" }}>{scan.sourceLabel}</span> ·{" "}
           {formatDate(scan.createdAt)}
@@ -57,13 +68,20 @@ export function ScanResult({ scan }: { scan: ScanRecord }) {
           </p>
         ) : (
           <ul className="sign-list">
-            {risky.map((sign) => (
-              <li key={sign.code} className={`sign sev-${sign.severity}`}>
-                <div className="sign-title">
-                  <span>{sign.title}</span>
-                  <span className="points">{SEVERITY_LABEL[sign.severity]}</span>
-                </div>
-                <p className="sign-detail">{sign.detail}</p>
+            {risky.map((sign, i) => (
+              <li key={sign.code}>
+                <details className={`sign sev-${sign.severity}`} open={i === 0}>
+                  <summary>
+                    <div className="sign-title">
+                      <span>{sign.title}</span>
+                      <span className="points">{SEVERITY_LABEL[sign.severity]}</span>
+                      <span className="chev" aria-hidden="true">
+                        ›
+                      </span>
+                    </div>
+                  </summary>
+                  <p className="sign-detail">{sign.detail}</p>
+                </details>
               </li>
             ))}
           </ul>
@@ -74,12 +92,19 @@ export function ScanResult({ scan }: { scan: ScanRecord }) {
             <h3 style={{ marginTop: "1.5rem" }}>Things that lowered the score</h3>
             <ul className="sign-list">
               {mitigating.map((sign) => (
-                <li key={sign.code} className="sign sev-low">
-                  <div className="sign-title">
-                    <span>{sign.title}</span>
-                    <span className="points">Lowers risk</span>
-                  </div>
-                  <p className="sign-detail">{sign.detail}</p>
+                <li key={sign.code}>
+                  <details className="sign sev-low">
+                    <summary>
+                      <div className="sign-title">
+                        <span>{sign.title}</span>
+                        <span className="points">Lowers risk</span>
+                        <span className="chev" aria-hidden="true">
+                          ›
+                        </span>
+                      </div>
+                    </summary>
+                    <p className="sign-detail">{sign.detail}</p>
+                  </details>
                 </li>
               ))}
             </ul>

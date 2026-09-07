@@ -30,6 +30,17 @@ export default async function HistoryPage() {
 
       {scans.length === 0 ? (
         <div className="empty">
+          <div className="empty-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M3 12a9 9 0 1 0 3-6.7"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+              <path d="M3 4v4h4M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
           <p>You have not run any scans yet.</p>
           <Link className="btn btn-primary" href="/scan">
             Scan a screenshot

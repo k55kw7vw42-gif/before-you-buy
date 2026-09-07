@@ -11,6 +11,22 @@ import {
   isAllowedImageType,
 } from "@/lib/validation";
 
+function CloudIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 15V7M9 10l3-3 3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M7 17.5a4 4 0 0 1-1-7.87A5 5 0 0 1 15.9 8.3 3.5 3.5 0 0 1 17 15v0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M17 15H7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ScanUploader() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +143,9 @@ export function ScanUploader() {
           accept(e.dataTransfer.files?.[0]);
         }}
       >
+        <div className="dz-icon">
+          <CloudIcon />
+        </div>
         <div className="dz-title">
           {file ? "Choose a different screenshot" : "Tap to choose a screenshot"}
         </div>
@@ -188,6 +207,14 @@ export function ScanUploader() {
           "Analyse screenshot"
         )}
       </button>
+
+      {busy && (
+        <div className="skeleton-block" aria-hidden="true">
+          <div className="skeleton-line w-60" />
+          <div className="skeleton-line w-80" />
+          <div className="skeleton-line w-40" />
+        </div>
+      )}
 
       <p className="small muted" style={{ margin: "0.85rem 0 0" }}>
         Your screenshot is analysed on our server and is not saved. Only the extracted findings are

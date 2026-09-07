@@ -74,6 +74,14 @@ export function LinkChecker() {
           "Check this link"
         )}
       </button>
+
+      {busy && (
+        <div className="skeleton-block" aria-hidden="true">
+          <div className="skeleton-line w-40" />
+          <div className="skeleton-line w-60" />
+        </div>
+      )}
+
       <p className="small muted" style={{ margin: "0.85rem 0 0" }}>
         This check reads the address only. It does not open the page, and it does not yet check the
         domain against a reputation database.
