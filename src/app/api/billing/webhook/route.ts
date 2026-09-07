@@ -11,20 +11,19 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * Stripe webhook. This is what makes a subscription real: the app never marks
- * anyone Pro because the browser said so, only because a Stripe-signed event
- * said so.
- *
- * The raw request body is required - the signature is computed over the exact
- * bytes Stripe sent, so it must not be parsed or re-serialised first.
- */
 export async function POST(request: Request) {
   const stripe = getStripe();
   const config = getBillingConfig();
+
   if (!stripe || !config) {
     console.error("[billing] webhook received but Stripe is not configured");
     return NextResponse.json({ error: "Billing is not configured." }, { status: 503 });
+  }
+
+  // ✅ مهم: تأكد إن webhookSecret موجود
+  if (!config.webhookSecret) {
+    console.error("[billing] missing webhook secret");
+    return NextResponse.json({ error: "Missing webhook secret." }, { status: 500 });
   }
 
   const signature = request.headers.get("stripe-signature");
@@ -35,18 +34,23 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
 
   let event: Stripe.Event;
+
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, config.webhookSecret);
+    // ✅ كده TypeScript مش هيشتكي
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      config.webhookSecret
+    );
   } catch (err) {
-    // An unverified payload is discarded outright: anyone can POST here.
     console.error(
       "[billing] rejected a webhook with an invalid signature:",
-      err instanceof Error ? err.message : "unknown error",
+      err instanceof Error ? err.message : "unknown error"
     );
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
 
-  // Stripe retries deliveries, so the same event can arrive more than once.
+  // منع التكرار
   if (!claimBillingEvent(event.id, event.type)) {
     return NextResponse.json({ received: true, duplicate: true });
   }
@@ -55,8 +59,6 @@ export async function POST(request: Request) {
     await handleEvent(stripe, event);
   } catch (err) {
     console.error(`[billing] failed to apply ${event.type}:`, err);
-    // Give up the claim so Stripe's redelivery is not mistaken for a duplicate
-    // and skipped; 500 asks Stripe to retry.
     releaseBillingEvent(event.id);
     return NextResponse.json({ error: "Could not process event." }, { status: 500 });
   }
@@ -68,15 +70,22 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event): Promise<void> {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.client_reference_id ?? session.metadata?.userId ?? null;
+
+      const userId =
+        session.client_reference_id ??
+        session.metadata?.userId ??
+        null;
+
       const subscriptionId =
-        typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+        typeof session.subscription === "string"
+          ? session.subscription
+          : session.subscription?.id;
+
       if (!userId || !subscriptionId) {
-        console.error("[billing] checkout.session.completed without a user or subscription id");
+        console.error("[billing] missing user or subscription id");
         return;
       }
-      // Re-read the subscription from Stripe rather than trusting the session
-      // payload for status and period.
+
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       applyStripeSubscription(userId, subscription);
       return;
@@ -86,20 +95,26 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event): Promise<void> {
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
+
       const customerId =
-        typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : subscription.customer?.id;
+
       const userId =
-        subscription.metadata?.userId ?? (customerId ? findUserByCustomerId(customerId) : null);
+        subscription.metadata?.userId ??
+        (customerId ? findUserByCustomerId(customerId) : null);
+
       if (!userId) {
-        console.error(`[billing] ${event.type} for an unknown customer`);
+        console.error(`[billing] ${event.type} for unknown user`);
         return;
       }
+
       applyStripeSubscription(userId, subscription);
       return;
     }
 
     default:
-      // Everything else is acknowledged and ignored.
       return;
   }
 }
