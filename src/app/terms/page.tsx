@@ -5,9 +5,7 @@ export default function Terms() {
     <div className="stack">
       <h1>Terms of Service</h1>
 
-      <p>
-        By using Before You Pay, you agree to these terms.
-      </p>
+      <p>By using Before You Pay, you agree to these terms.</p>
 
       <h2>Use of service</h2>
       <p>
