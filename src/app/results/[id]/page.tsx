@@ -5,7 +5,7 @@ import Link from "next/link";
 export function ScanResult({ scan }: { scan: any }) {
   return (
     <div className="stack">
-      
+
       {/* 🧠 Verdict */}
       <div className={`card risk-${scan.level}`}>
         <h2 className="text-xl font-bold">
@@ -16,7 +16,9 @@ export function ScanResult({ scan }: { scan: any }) {
             : "✅ Safe"}
         </h2>
 
-        <p className="text-3xl font-bold mt-2">{scan.score}/100</p>
+        <p className="text-3xl font-bold mt-2">
+          {scan.score}/100
+        </p>
 
         {/* 💣 Reason */}
         <p className="mt-2 text-sm font-semibold">
@@ -32,6 +34,7 @@ export function ScanResult({ scan }: { scan: any }) {
       {/* ⚠️ Warning Signs */}
       <div className="card">
         <h3 className="font-bold mb-2">⚠️ Warning signs</h3>
+
         <ul className="list-disc ml-5">
           {scan.signs?.map((s: string, i: number) => (
             <li key={i}>{s}</li>
@@ -57,12 +60,13 @@ export function ScanResult({ scan }: { scan: any }) {
         <p className="text-sm mt-1">
           Upgrade to Pro for more scans & no ads
         </p>
-        <a
+
+        <Link
           href="/pricing"
           className="block mt-3 w-full bg-black text-white py-2 rounded-xl font-semibold"
         >
           🔓 Upgrade to Pro
-        </a>
+        </Link>
       </div>
 
       {/* 🔍 CTA */}
@@ -76,6 +80,7 @@ export function ScanResult({ scan }: { scan: any }) {
       <p className="text-xs text-gray-400 mt-4 text-center">
         Results are guidance, not a guarantee.
       </p>
+
     </div>
   );
 }
