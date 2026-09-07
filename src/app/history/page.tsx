@@ -25,22 +25,34 @@ export default async function HistoryPage() {
 
   return (
     <div className="stack">
+      {/* 🧠 Header */}
       <div>
         <h1>Your scan history</h1>
         <p className="muted">Only you can see these scans.</p>
       </div>
 
+      {/* 🔍 CTA يرجّع المستخدم */}
+      <div className="card text-center">
+        <p className="font-bold">🔍 Keep checking links</p>
+        <Link href="/link" className="btn btn-primary mt-2">
+          Check another link
+        </Link>
+      </div>
+
       {/* 💰 Upgrade Box */}
       <div className="card text-center">
-        <p className="font-bold">😤 Want more protection?</p>
+        <p className="font-bold">
+          😤 Avoid scams like these → Upgrade to Pro
+        </p>
         <p className="text-sm">
-          Upgrade to Pro for unlimited scans & full history access
+          Get unlimited scans & full history access
         </p>
         <a href="/pricing" className="btn btn-primary mt-2">
           Upgrade
         </a>
       </div>
 
+      {/* 🧾 Content */}
       {scans.length === 0 ? (
         <div className="empty">
           <div className="empty-icon" aria-hidden="true">
@@ -85,7 +97,7 @@ export default async function HistoryPage() {
                   <span className="hint">Tap to view details →</span>
                 </span>
 
-                {/* 🚨 Risk واضح */}
+                {/* 🚨 Risk */}
                 <span className="history-risk">
                   {scan.level === "high"
                     ? "🚨 High Risk"
@@ -98,6 +110,9 @@ export default async function HistoryPage() {
                 <span className="history-date">
                   {formatDate(scan.createdAt)}
                 </span>
+
+                {/* ➡️ Arrow */}
+                <span className="history-arrow">→</span>
               </Link>
             </li>
           ))}
