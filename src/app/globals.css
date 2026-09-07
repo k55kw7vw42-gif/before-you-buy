@@ -794,3 +794,23 @@ input:focus-visible, textarea:focus-visible, .btn:focus-visible, a:focus-visible
   height: 1px;
   background: var(--border);
 }
+
+/* ---- Ad slots ----
+   A reserved box around every AdSense unit, independent of the ad itself:
+   full width and a shorter reserved height on a phone screen, capped at a
+   classic 728px leaderboard width and centered above that. The reserved
+   min-height is a best-effort guess (a responsive "auto" unit's real height
+   is not knowable before Google fills it) but it keeps most of the page from
+   jumping when the ad script finishes loading after everything else. */
+.ad-slot {
+  margin: 1.5rem auto;
+  max-width: 728px;
+  width: 100%;
+  min-height: 100px;
+  overflow: hidden;
+  text-align: center;
+}
+@media (min-width: 721px) {
+  .ad-slot { min-height: 250px; }
+}
+.ad-slot .adsbygoogle { width: 100%; }

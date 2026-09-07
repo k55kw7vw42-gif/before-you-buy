@@ -59,6 +59,13 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {/* Mid-content placement: after the scan-specific findings the visitor
+          came here for, before the closing upgrade pitch. Deliberately not
+          placed above ScanResult - this page's job is to deliver a risk
+          verdict as fast as possible, and an ad ahead of that would work
+          against the one thing the app exists to do. */}
+      {showAd && <AdBanner slot="1234567890" />}
+
       <div
         className="card"
         style={{ marginTop: "1.5rem", textAlign: "center", background: "var(--brand-gradient)", color: "#fff" }}
@@ -75,12 +82,6 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
           🔓 Upgrade to Pro
         </Link>
       </div>
-
-      {showAd && (
-        <div style={{ marginTop: "1rem" }}>
-          <AdBanner slot="1234567890" />
-        </div>
-      )}
 
       {!user && (
         <p className="notice-strip">

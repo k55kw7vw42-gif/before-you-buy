@@ -10,10 +10,20 @@ declare global {
 }
 
 /**
- * A single AdSense ad unit. The loader script (in the root layout) is the
- * one place that decides whether ads are enabled at all - this component
- * only needs the publisher id to render its <ins> tag, so it renders nothing
- * if that id is not configured, rather than showing a broken ad slot.
+ * A single, responsive AdSense ad unit.
+ *
+ * Wrapped in a fixed-width, height-reserving container (.ad-slot in
+ * globals.css): full width on a phone, capped at a classic 728px leaderboard
+ * width and centered above that, with margin above and below so it never
+ * sits flush against surrounding content. The reserved min-height is a
+ * best-effort guess - a responsive "auto" unit's real height is not knowable
+ * until Google fills it - but it keeps most of the page from jumping when
+ * the ad finishes loading after everything else on the page.
+ *
+ * The loader script (in the root layout) is the one place that decides
+ * whether ads are enabled at all - this component only needs the publisher
+ * id to render its <ins> tag, so it renders nothing if that id is not
+ * configured, rather than showing an empty reserved box for no reason.
  *
  * The client id comes from a NEXT_PUBLIC_ env var, which Next.js inlines as
  * the same literal string in both the server-rendered HTML and the client
@@ -31,6 +41,7 @@ export function AdBanner({
   /** The AdSense ad unit's slot id (data-ad-slot), from the AdSense dashboard. */
   slot: string;
   format?: string;
+  /** Applied to the outer .ad-slot wrapper, not the <ins> itself. */
   className?: string;
   style?: CSSProperties;
 }) {
@@ -48,13 +59,15 @@ export function AdBanner({
   if (!clientId) return null;
 
   return (
-    <ins
-      className={["adsbygoogle", className].filter(Boolean).join(" ")}
-      style={{ display: "block", ...style }}
-      data-ad-client={clientId}
-      data-ad-slot={slot}
-      data-ad-format={format}
-      data-full-width-responsive="true"
-    />
+    <div className={["ad-slot", className].filter(Boolean).join(" ")} style={style}>
+      <ins
+        className="adsbygoogle"
+        style={{ display: "block" }}
+        data-ad-client={clientId}
+        data-ad-slot={slot}
+        data-ad-format={format}
+        data-full-width-responsive="true"
+      />
+    </div>
   );
 }
