@@ -21,12 +21,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <SiteHeader />
+
         <main className="page">{children}</main>
+
+        {/* ✅ Footer updated */}
         <footer className="site-footer">
-          Before You Pay highlights common scam warning signs. It cannot confirm that an offer is
-          genuine or prove that it is fraudulent - always verify a seller independently before you
-          send money. <Link href="/">Home</Link>
+          <p>
+            Before You Pay highlights common scam warning signs. It cannot confirm that an offer is
+            genuine or prove that it is fraudulent — always verify a seller independently before you
+            send money.
+          </p>
+
+          <div style={{ marginTop: "10px" }}>
+            <Link href="/">Home</Link> {" • "}
+            <Link href="/privacy">Privacy</Link> {" • "}
+            <Link href="/terms">Terms</Link>
+          </div>
         </footer>
+
         <BottomNav />
       </body>
     </html>
