@@ -1,12 +1,20 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { getStripe } from "@/lib/billing/stripe";
+import { applyStripeSubscription, getEntitlement } from "@/lib/billing/subscription";
+
+export const dynamic = "force-dynamic";
+
 export default async function BillingSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string }>; // ✅ لازم Promise
+  searchParams: Promise<{ session_id?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account");
 
-  const { session_id: sessionId } = await searchParams; // ✅ await مهم
+  const { session_id: sessionId } = await searchParams;
 
   const stripe = getStripe();
   let reconciled = false;
