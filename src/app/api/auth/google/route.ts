@@ -15,21 +15,21 @@ export const dynamic = "force-dynamic";
 
 /**
  * Starts Google sign-in.
- *
- * A random `state` is stored in an httpOnly cookie and echoed to Google, so the
- * callback can prove the response belongs to a flow this browser began rather
- * than one an attacker started.
  */
 export async function GET(request: Request) {
   const config = getGoogleConfig();
+
   if (!config) {
-    return NextResponse.redirect(new URL("/login?error=google_unavailable", appBaseUrl(request)));
+    return NextResponse.redirect(
+      new URL("/login?error=google_unavailable", appBaseUrl(request))
+    );
   }
 
   const state = randomBytes(24).toString("hex");
   const store = await cookies();
   const secure = process.env.NODE_ENV === "production";
 
+  // state cookie
   store.set(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
     sameSite: "lax",
@@ -38,9 +38,13 @@ export async function GET(request: Request) {
     maxAge: 600,
   });
 
-  // Where to land afterwards. Only same-site relative paths are ever honoured.
+  // next redirect cookie
   const requested = new URL(request.url).searchParams.get("next");
-  const next = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/scan";
+  const next =
+    requested && requested.startsWith("/") && !requested.startsWith("//")
+      ? requested
+      : "/scan";
+
   store.set(OAUTH_NEXT_COOKIE, next, {
     httpOnly: true,
     sameSite: "lax",
@@ -49,6 +53,11 @@ export async function GET(request: Request) {
     maxAge: 600,
   });
 
-  const redirectUri = googleRedirectUri(appBaseUrl(request));
-  return NextResponse.redirect(buildAuthorizationUrl(config, redirectUri, state));
+  // ✅ الحل هنا
+  const baseUrl = process.env.NEXTAUTH_URL!;
+  const redirectUri = googleRedirectUri(baseUrl);
+
+  return NextResponse.redirect(
+    buildAuthorizationUrl(config, redirectUri, state)
+  );
 }
