@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import { BottomNav } from "@/components/BottomNav";
 import { SiteHeader } from "@/components/SiteHeader";
+import { adsenseClientId, areAdsEnabled } from "@/lib/ads";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,9 +19,21 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const clientId = adsenseClientId();
+  const showAdsenseScript = areAdsEnabled() && !!clientId;
+
   return (
     <html lang="en">
       <body>
+        {showAdsenseScript && (
+          <Script
+            id="adsbygoogle-loader"
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}`}
+            crossOrigin="anonymous"
+            strategy="afterInteractive"
+          />
+        )}
         <SiteHeader />
 
         <main className="page">{children}</main>

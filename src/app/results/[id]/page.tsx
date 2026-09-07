@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdBanner } from "@/components/AdBanner";
 import { ScanResult } from "@/components/ScanResult";
+import { areAdsEnabled } from "@/lib/ads";
 import { getCurrentUser, getGuestId } from "@/lib/auth";
+import { getEntitlement } from "@/lib/billing/subscription";
 import { getScanForOwner } from "@/lib/scans";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +18,10 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
   const scan = getScanForOwner(id, { userId: user?.id ?? null, guestId });
   // Someone else's scan is indistinguishable from one that does not exist.
   if (!scan) notFound();
+
+  // A signed-out visitor is never Pro; only a signed-in user can be.
+  const isPro = user ? getEntitlement(user.id).plan.id === "pro" : false;
+  const showAd = areAdsEnabled() && !isPro;
 
   // This page is shared by link and screenshot scans, and by every risk
   // level - the scam-style warning only makes sense for a link that our own
@@ -69,9 +76,11 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         </Link>
       </div>
 
-      <div className="small muted" style={{ marginTop: "1rem", textAlign: "center" }}>
-        Ad space
-      </div>
+      {showAd && (
+        <div style={{ marginTop: "1rem" }}>
+          <AdBanner slot="1234567890" />
+        </div>
+      )}
 
       {!user && (
         <p className="notice-strip">
