@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import Stripe from "stripe";
 import { getCurrentUser } from "@/lib/auth";
 import { baseUrl } from "@/lib/base-url";
 import { getBillingConfig, getStripe } from "@/lib/billing/stripe";
@@ -66,6 +67,20 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ url: session.url });
   } catch (err) {
+    // A StripeError names the actual problem (bad price id, key/mode
+    // mismatch, etc.) - log it in full so it shows up in server logs, and
+    // surface the safe, merchant-facing message Stripe generates for it
+    // rather than a one-size-fits-all string that hides the real cause.
+    if (err instanceof Stripe.errors.StripeError) {
+      console.error(
+        `[billing] Stripe rejected the Checkout session (${err.type}${err.code ? `/${err.code}` : ""}):`,
+        err.message,
+      );
+      return NextResponse.json(
+        { error: `We could not start the checkout: ${err.message}` },
+        { status: 502 },
+      );
+    }
     console.error("[billing] could not create a Checkout session:", err);
     return NextResponse.json(
       { error: "We could not start the checkout. Please try again." },
