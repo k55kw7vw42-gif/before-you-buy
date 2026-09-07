@@ -18,34 +18,65 @@ export function LimitReached({
 
   return (
     <section className="card">
+      {/* 🔴 Header */}
       <span className="badge risk-medium">
         <span className="dot" aria-hidden="true" />
-        Limit reached
+        🚨 Protection paused
       </span>
+
+      {/* 🧠 Title */}
       <h2 style={{ marginTop: "0.75rem" }}>
         {isPro
           ? `You've used all ${usage.limit} analyses ${periodLabel(usage.period)}`
-          : `You've used your ${usage.limit} free analyses this month`}
+          : `You're out of free protection this month`}
       </h2>
 
       {isPro ? (
         <p className="muted">
-          Your allowance resets on {formatResetDate(usage.periodEnd)}. Link checks still work in
-          the meantime.
+          Your allowance resets on {formatResetDate(usage.periodEnd)}.
         </p>
       ) : (
         <>
+          {/* 💣 Message */}
           <p className="muted">
-            Upgrade to Pro for {PLANS.pro.monthlyScans} screenshot analyses a month at{" "}
-            {PLANS.pro.priceLabel}, or wait until your free allowance resets on{" "}
-            {formatResetDate(usage.periodEnd)}.
+            You've used all your free scans. Don't risk sending money without checking.
           </p>
-          <div style={{ marginTop: "1.25rem" }}>
-            <UpgradeButton signedIn={signedIn} billingConfigured={billingConfigured} />
+
+          {/* ✅ Benefits */}
+          <div style={{ marginTop: "1rem" }}>
+            <ul
+              className="small"
+              style={{
+                textAlign: "left",
+                margin: "0 auto",
+                maxWidth: 300,
+              }}
+            >
+              <li>✔ Continue scanning before you pay</li>
+              <li>✔ Stay protected from scams</li>
+              <li>✔ Ad-free experience</li>
+            </ul>
           </div>
-          <p className="small muted" style={{ marginTop: "1rem", marginBottom: 0 }}>
-            <Link href="/pricing">Compare plans</Link> · Link checks are free and unlimited on
-            every plan, so you can still <Link href="/link">check a link</Link>.
+
+          {/* 🔓 Upgrade Button */}
+          <div style={{ marginTop: "1.5rem" }}>
+            <UpgradeButton
+              signedIn={signedIn}
+              billingConfigured={billingConfigured}
+            />
+          </div>
+
+          {/* ⚠️ Reset notice */}
+          <p className="small muted" style={{ marginTop: "1rem" }}>
+            ⚠️ Your protection resets on {formatResetDate(usage.periodEnd)}
+          </p>
+
+          {/* 🔗 Pricing link */}
+          <p
+            className="small muted"
+            style={{ marginTop: "0.5rem", marginBottom: 0 }}
+          >
+            <Link href="/pricing">Compare plans</Link>
           </p>
         </>
       )}
