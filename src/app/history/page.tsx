@@ -29,14 +29,25 @@ export default async function HistoryPage() {
 
   return (
     <div className="stack">
+      {/* 🧠 Header */}
       <div>
         <h1>Your scan history</h1>
         <p className="muted">Only you can see these scans.</p>
       </div>
 
+      <div className="card" style={{ textAlign: "center" }}>
+        <p style={{ fontWeight: 700, margin: 0 }}>🔍 Keep checking links</p>
+        <p className="small muted" style={{ marginTop: "0.35rem", marginBottom: 0 }}>
+          Link checks are free and unlimited on every plan.
+        </p>
+        <Link href="/link" className="btn btn-primary" style={{ marginTop: "0.85rem" }}>
+          Check another link
+        </Link>
+      </div>
+
       {usage.plan.id !== "pro" && (
         <div className="card" style={{ textAlign: "center" }}>
-          <p style={{ fontWeight: 700, margin: 0 }}>😤 Want more protection?</p>
+          <p style={{ fontWeight: 700, margin: 0 }}>😤 Avoid scams like these - upgrade to Pro</p>
           <p className="small muted" style={{ marginTop: "0.35rem", marginBottom: 0 }}>
             Upgrade to Pro for {PLANS.pro.monthlyScans} screenshot analyses a month at{" "}
             {PLANS.pro.priceLabel}.
@@ -47,6 +58,7 @@ export default async function HistoryPage() {
         </div>
       )}
 
+      {/* 🧾 Content */}
       {scans.length === 0 ? (
         <div className="empty">
           <div className="empty-icon" aria-hidden="true">
