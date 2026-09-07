@@ -36,6 +36,30 @@ export async function POST(request: Request) {
     );
   }
 
+  // The single most common way this breaks: STRIPE_PRICE_ID gets set to a
+  // Product ID ("prod_...", shown at the top of a product page) instead of
+  // one of its Price IDs ("price_...", shown in the product's pricing
+  // section). Stripe accepts only a Price ID for a Checkout line item, and
+  // rejects a Product ID with a "No such price" error that does not say why.
+  // Catching the wrong prefix here fails immediately with an actionable
+  // message instead of a round trip to Stripe first.
+  if (!config.priceId.startsWith("price_")) {
+    console.error(
+      `[billing] STRIPE_PRICE_ID ("${config.priceId}") is not a Price ID - Stripe Price IDs ` +
+        'always start with "price_". Open the product in the Stripe Dashboard, open its ' +
+        'pricing section, and copy the ID that starts with "price_".',
+    );
+    return NextResponse.json(
+      {
+        error:
+          'Payments are misconfigured: STRIPE_PRICE_ID must be a Price ID (starts with "price_"), ' +
+          'not a Product ID ("prod_..."). Copy the Price ID from the product\'s pricing section ' +
+          "in the Stripe Dashboard.",
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     // Reuse the customer we already created for this user, so a second
     // subscription is never opened against a duplicate customer record.
