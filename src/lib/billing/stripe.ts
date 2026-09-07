@@ -10,15 +10,20 @@ export function getStripe() {
 
 export function getBillingConfig() {
   const priceId = process.env.STRIPE_PRICE_ID;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!priceId) return null;
+  if (!priceId || !webhookSecret) return null;
 
   return {
     priceId,
+    webhookSecret,
   };
 }
 
-// ✅ الحل هنا
 export function isBillingConfigured() {
-  return !!process.env.STRIPE_SECRET_KEY && !!process.env.STRIPE_PRICE_ID;
+  return !!(
+    process.env.STRIPE_SECRET_KEY &&
+    process.env.STRIPE_PRICE_ID &&
+    process.env.STRIPE_WEBHOOK_SECRET
+  );
 }
