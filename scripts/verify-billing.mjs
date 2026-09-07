@@ -390,7 +390,7 @@ async function main() {
     check("the refusal explains the limit", /free analyses this month/i.test(blocked.data?.error ?? ""));
 
     const scanPage = await visibleText("/scan");
-    check("the scan page shows the upgrade screen", scanPage.includes("Limit reached"));
+    check("the scan page shows the upgrade screen", scanPage.includes("Protection paused"));
     check("the upgrade screen names the Pro allowance", scanPage.includes("100 screenshot analyses"));
 
     const usedBefore = (await status())?.used;

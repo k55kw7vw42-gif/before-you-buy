@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { RiskBadge } from "@/components/RiskBadge";
 import { getCurrentUser } from "@/lib/auth";
+import { PLANS } from "@/lib/billing/plans";
+import { getUsage } from "@/lib/billing/usage";
 import { listScansForUser } from "@/lib/scans";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +25,7 @@ export default async function HistoryPage() {
   if (!user) redirect("/login?next=/history");
 
   const scans = listScansForUser(user.id);
+  const usage = getUsage({ userId: user.id, guestId: null });
 
   return (
     <div className="stack">
@@ -30,16 +34,18 @@ export default async function HistoryPage() {
         <p className="muted">Only you can see these scans.</p>
       </div>
 
-      {/* 💰 Upgrade Box */}
-      <div className="card text-center">
-        <p className="font-bold">😤 Want more protection?</p>
-        <p className="text-sm">
-          Upgrade to Pro for unlimited scans & full history access
-        </p>
-        <a href="/pricing" className="btn btn-primary mt-2">
-          Upgrade
-        </a>
-      </div>
+      {usage.plan.id !== "pro" && (
+        <div className="card" style={{ textAlign: "center" }}>
+          <p style={{ fontWeight: 700, margin: 0 }}>😤 Want more protection?</p>
+          <p className="small muted" style={{ marginTop: "0.35rem", marginBottom: 0 }}>
+            Upgrade to Pro for {PLANS.pro.monthlyScans} screenshot analyses a month at{" "}
+            {PLANS.pro.priceLabel}.
+          </p>
+          <Link href="/pricing" className="btn btn-primary" style={{ marginTop: "0.85rem" }}>
+            Upgrade
+          </Link>
+        </div>
+      )}
 
       {scans.length === 0 ? (
         <div className="empty">
@@ -72,32 +78,14 @@ export default async function HistoryPage() {
           {scans.map((scan) => (
             <li key={scan.id}>
               <Link className="history-item" href={`/results/${scan.id}`}>
-                
-                {/* 🔢 Score */}
-                <span className={`history-score risk-${scan.level}`}>
-                  {scan.score}
-                </span>
-
-                {/* 📄 Main */}
+                <span className={`history-score risk-${scan.level}`}>{scan.score}</span>
                 <span className="history-main">
                   <span className="title">{scan.sourceLabel}</span>
                   <span className="sub">{scan.summary}</span>
                   <span className="hint">Tap to view details →</span>
                 </span>
-
-                {/* 🚨 Risk واضح */}
-                <span className="history-risk">
-                  {scan.level === "high"
-                    ? "🚨 High Risk"
-                    : scan.level === "medium"
-                    ? "⚠️ Medium Risk"
-                    : "✅ Safe"}
-                </span>
-
-                {/* 🕒 Time */}
-                <span className="history-date">
-                  {formatDate(scan.createdAt)}
-                </span>
+                <RiskBadge level={scan.level} />
+                <span className="history-date">{formatDate(scan.createdAt)}</span>
               </Link>
             </li>
           ))}

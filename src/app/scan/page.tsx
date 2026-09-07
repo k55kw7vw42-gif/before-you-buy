@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ScanUploader } from "@/components/ScanUploader";
 import { LimitReached } from "@/components/LimitReached";
 import { SignInToScan } from "@/components/SignInToScan";
@@ -27,19 +28,26 @@ export default async function ScanPage() {
       {/* Usage meter */}
       {user && <UsageMeter usage={usage} signedIn />}
 
-      {/* 🟡 Upgrade hint قبل ما يخلص */}
-      {user && !usage.exhausted && (
-        <div className="bg-yellow-400 text-black rounded-xl p-3 mt-3 text-center">
-          <p className="font-semibold text-sm">
+      {/* Upgrade hint before the allowance runs out */}
+      {user && !usage.exhausted && usage.plan.id !== "pro" && (
+        <div
+          className="small"
+          style={{
+            marginTop: "0.75rem",
+            padding: "0.75rem 0.9rem",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--medium-border)",
+            background: "var(--medium-bg)",
+            color: "var(--medium)",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ fontWeight: 600, margin: 0 }}>
             ⚠️ {usage.remaining} scans left this month
           </p>
-
-          <button
-            onClick={() => (window.location.href = "/pricing")}
-            className="mt-2 text-sm underline font-bold"
-          >
+          <Link href="/pricing" style={{ fontWeight: 700, textDecoration: "underline", color: "inherit" }}>
             Upgrade to Pro
-          </button>
+          </Link>
         </div>
       )}
 

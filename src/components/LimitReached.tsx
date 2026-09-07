@@ -33,13 +33,16 @@ export function LimitReached({
 
       {isPro ? (
         <p className="muted">
-          Your allowance resets on {formatResetDate(usage.periodEnd)}.
+          Your allowance resets on {formatResetDate(usage.periodEnd)}. Link checks still work in
+          the meantime.
         </p>
       ) : (
         <>
           {/* 💣 Message */}
           <p className="muted">
             You've used all your free scans. Don't risk sending money without checking.
+            Upgrade to Pro for {PLANS.pro.monthlyScans} screenshot analyses a month at{" "}
+            {PLANS.pro.priceLabel}.
           </p>
 
           {/* ✅ Benefits */}
@@ -76,7 +79,8 @@ export function LimitReached({
             className="small muted"
             style={{ marginTop: "0.5rem", marginBottom: 0 }}
           >
-            <Link href="/pricing">Compare plans</Link>
+            <Link href="/pricing">Compare plans</Link> · Link checks are free and unlimited on
+            every plan, so you can still <Link href="/link">check a link</Link>.
           </p>
         </>
       )}
