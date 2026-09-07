@@ -1,166 +1,84 @@
+"use client";
+
 import Link from "next/link";
-import type { ScanRecord } from "@/lib/types";
-import { verdictLine } from "@/lib/risk/engine";
-import { RiskBadge } from "./RiskBadge";
-import { ScoreDial } from "./ScoreDial";
-import { ShareButton } from "./ShareButton";
 
-const SEVERITY_LABEL: Record<string, string> = {
-  high: "Strong signal",
-  medium: "Moderate signal",
-  low: "Minor signal",
-};
-
-/** Purely decorative, alongside the badge - never the only risk indicator. */
-const VERDICT_EMOJI: Record<string, string> = {
-  low: "✅",
-  medium: "⚠️",
-  high: "⚠️",
-};
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-/** The full results view, shared by a fresh scan and a history entry. */
-export function ScanResult({ scan }: { scan: ScanRecord }) {
-  const risky = scan.warningSigns.filter((w) => w.points > 0);
-  const mitigating = scan.warningSigns.filter((w) => w.points <= 0);
-
+export function ScanResult({ scan }: { scan: any }) {
   return (
-    <div className="stack-lg">
-      <section className={`card verdict-hero level-${scan.level}`}>
-        <div className="verdict-emoji" aria-hidden="true">
-          {VERDICT_EMOJI[scan.level]}
-        </div>
-        <RiskBadge level={scan.level} />
-        <div className="score-panel" style={{ marginTop: "1.1rem" }}>
-          <ScoreDial score={scan.score} level={scan.level} />
-        </div>
-        <h1 style={{ marginTop: "1.1rem", fontSize: "1.7rem" }}>Risk Score: {scan.score}/100</h1>
-        <p className="verdict-line">{verdictLine(scan.level, risky.length)}</p>
+    <div className="stack">
 
-        <div className="share-row">
-          <ShareButton score={scan.score} level={scan.level} />
-        </div>
+      {/* 🧠 Verdict */}
+      <div className={`card risk-${scan.level}`}>
+        <h2 className="text-xl font-bold">
+          {scan.level === "high"
+            ? "🚨 High Risk"
+            : scan.level === "medium"
+            ? "⚠️ Medium Risk"
+            : "✅ Safe"}
+        </h2>
 
-        <p className="small muted" style={{ marginTop: "1.5rem", marginBottom: 0 }}>
-          {scan.scanType === "link" ? "Link checked" : "Screenshot"}:{" "}
-          <span style={{ overflowWrap: "anywhere" }}>{scan.sourceLabel}</span> ·{" "}
-          {formatDate(scan.createdAt)}
+        <p className="text-3xl font-bold mt-2">
+          {scan.score}/100
         </p>
-      </section>
 
-      <section className="card">
-        <h2>Summary</h2>
-        <p style={{ marginBottom: 0 }}>{scan.summary}</p>
-      </section>
+        <p className="mt-2 text-sm font-semibold">
+          ⚠️ This result shows patterns commonly used in scams
+        </p>
 
-      <section className="card">
-        <h2>Why we flagged this</h2>
-        {risky.length === 0 ? (
-          <p className="muted" style={{ marginBottom: 0 }}>
-            We did not find any of the warning signs we check for. That is not a guarantee that
-            this is genuine - it only means nothing stood out to us.
-          </p>
-        ) : (
-          <ul className="sign-list">
-            {risky.map((sign, i) => (
-              <li key={sign.code}>
-                <details className={`sign sev-${sign.severity}`} open={i === 0}>
-                  <summary>
-                    <div className="sign-title">
-                      <span>{sign.title}</span>
-                      <span className="points">{SEVERITY_LABEL[sign.severity]}</span>
-                      <span className="chev" aria-hidden="true">
-                        ›
-                      </span>
-                    </div>
-                  </summary>
-                  <p className="sign-detail">{sign.detail}</p>
-                </details>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="mt-4 bg-red-100 text-red-700 p-4 rounded-xl text-sm font-semibold">
+          🚨 Do NOT enter passwords, card details, or personal info.
+        </div>
+      </div>
 
-        {mitigating.length > 0 && (
-          <>
-            <h3 style={{ marginTop: "1.5rem" }}>Things that lowered the score</h3>
-            <ul className="sign-list">
-              {mitigating.map((sign) => (
-                <li key={sign.code}>
-                  <details className="sign sev-low">
-                    <summary>
-                      <div className="sign-title">
-                        <span>{sign.title}</span>
-                        <span className="points">Lowers risk</span>
-                        <span className="chev" aria-hidden="true">
-                          ›
-                        </span>
-                      </div>
-                    </summary>
-                    <p className="sign-detail">{sign.detail}</p>
-                  </details>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+      {/* ⚠️ Warning Signs */}
+      <div className="card">
+        <h3 className="font-bold mb-2">⚠️ Warning signs</h3>
 
-      <section className="card">
-        <h2>What you should do next</h2>
-        <ol className="action-list">
-          {scan.recommendations.map((rec) => (
-            <li key={rec}>{rec}</li>
+        <ul className="list-disc ml-5">
+          {scan.signs?.map((s: string, i: number) => (
+            <li key={i}>{s}</li>
           ))}
-        </ol>
-      </section>
+        </ul>
 
-      {scan.fields.length > 0 && (
-        <section className="card">
-          <h2>Information we extracted</h2>
-          <dl className="kv">
-            {scan.fields.map((field, i) => (
-              <div key={field.key}>
-                {i > 0 && <span className="row-sep" />}
-                <dt>{field.label}</dt>
-                <dd>{field.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      )}
-
-      {scan.notes.length > 0 && (
-        <section className="card card-flat">
-          <h3>Limits of this check</h3>
-          <ul className="action-list small muted">
-            {scan.notes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
+        <div className="mt-4 text-sm text-gray-500">
+          <p className="font-semibold mb-1">🔎 We checked:</p>
+          <ul className="list-disc ml-5">
+            <li>Domain patterns</li>
+            <li>Suspicious keywords</li>
+            <li>Common scam signals</li>
           </ul>
-        </section>
-      )}
+        </div>
+      </div>
 
-      <div className="btn-row">
-        <Link className="btn btn-primary" href="/scan">
-          Scan another screenshot
-        </Link>
-        <Link className="btn btn-secondary" href="/link">
-          Check a link
+      {/* 💰 Upgrade */}
+      <div className="mt-6 bg-yellow-400 text-black p-4 rounded-xl text-center">
+        <p className="font-bold">
+          😤 Stay protected from scams like this
+        </p>
+
+        <p className="text-sm mt-1">
+          Upgrade to Pro for more scans & no ads
+        </p>
+
+        <Link
+          href="/pricing"
+          className="block mt-3 w-full bg-black text-white py-2 rounded-xl font-semibold"
+        >
+          🔓 Upgrade to Pro
         </Link>
       </div>
 
-      <p className="disclaimer">
-        Before You Pay looks for common warning signs. It cannot confirm that an offer is genuine
-        or prove that it is fraudulent, and a low score is not an endorsement. Always verify a
-        seller independently before you send money.
+      {/* 🔍 CTA */}
+      <div className="mt-6 text-center">
+        <Link href="/link" className="btn btn-primary">
+          Check another link
+        </Link>
+      </div>
+
+      {/* ⚠️ Disclaimer */}
+      <p className="text-xs text-gray-400 mt-4 text-center">
+        Results are guidance, not a guarantee.
       </p>
+
     </div>
   );
 }
