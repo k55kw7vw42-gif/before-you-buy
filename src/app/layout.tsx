@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import Script from "next/script";
+import { AnalyticsPageView } from "@/components/AnalyticsPageView";
 import { BottomNav } from "@/components/BottomNav";
 import { SiteHeader } from "@/components/SiteHeader";
 import { adsenseClientId, areAdsEnabled } from "@/lib/ads";
+import { gaMeasurementId } from "@/lib/analytics";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,6 +23,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const clientId = adsenseClientId();
   const showAdsenseScript = areAdsEnabled() && !!clientId;
+  const gaId = gaMeasurementId();
 
   return (
     <html lang="en">
@@ -33,6 +36,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             crossOrigin="anonymous"
             strategy="afterInteractive"
           />
+        )}
+        {gaId && (
+          <>
+            <Script
+              id="ga4-loader"
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
+              strategy="afterInteractive"
+            />
+            {/* send_page_view: false - AnalyticsPageView below sends every
+                page_view, including the first, so gtag's own automatic one
+                (which fires once on script load) never double-counts it. */}
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                window.gtag = gtag;
+                gtag('js', new Date());
+                gtag('config', '${gaId}', { send_page_view: false });
+              `}
+            </Script>
+            <AnalyticsPageView />
+          </>
         )}
         <SiteHeader />
 

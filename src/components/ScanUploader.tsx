@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { trackEvent } from "@/lib/analytics";
 import {
   ALLOWED_IMAGE_EXTENSIONS,
   ALLOWED_IMAGE_TYPES,
@@ -100,6 +101,13 @@ export function ScanUploader() {
         setBusy(false);
         return;
       }
+      // Fires exactly once per successful upload: submit() already refuses to
+      // run again while busy is true, and this line only runs once per
+      // request that actually succeeded.
+      trackEvent("document_uploaded", {
+        event_category: "engagement",
+        event_label: "upload",
+      });
       router.push(`/results/${data.id}`);
     } catch {
       setError("We could not reach the server. Check your connection and try again.");

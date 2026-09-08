@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TryFreeCta } from "@/components/TryFreeCta";
 import { isDemoMode } from "@/lib/ai";
 
 function UploadIcon() {
@@ -44,9 +45,9 @@ export default function HomePage() {
           we&apos;ll analyse it for potential scam warning signs — in seconds, before you pay.
         </p>
         <div className="btn-row" style={{ marginTop: "1.75rem" }}>
-          <Link className="btn btn-primary btn-hero" href="/scan">
+          <TryFreeCta className="btn btn-primary btn-hero" href="/scan">
             Scan Screenshot
-          </Link>
+          </TryFreeCta>
           <Link className="btn btn-secondary" href="/link">
             Check a Link
           </Link>

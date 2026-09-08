@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PurchaseTracker } from "@/components/PurchaseTracker";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe } from "@/lib/billing/stripe";
 import { applyStripeSubscription, getEntitlement } from "@/lib/billing/subscription";
@@ -26,6 +27,9 @@ export default async function BillingSuccessPage({
   const { session_id: sessionId } = await searchParams;
   const stripe = getStripe();
   let reconciled = false;
+  // Stripe's own amounts for this exact transaction, not this app's "$9.99"
+  // marketing label - the source of truth for what GA reports as revenue.
+  let purchase: { value: number; currency: string } | null = null;
 
   if (stripe && sessionId) {
     try {
@@ -43,6 +47,9 @@ export default async function BillingSuccessPage({
             : session.subscription;
         applyStripeSubscription(user.id, subscription);
         reconciled = true;
+        if (session.amount_total != null && session.currency) {
+          purchase = { value: session.amount_total / 100, currency: session.currency.toUpperCase() };
+        }
       } else if (!belongsToUser) {
         console.error("[billing] a Checkout session was opened by a different user");
       }
@@ -56,6 +63,9 @@ export default async function BillingSuccessPage({
 
   return (
     <div className="stack" style={{ maxWidth: "34rem", margin: "2rem auto" }}>
+      {reconciled && purchase && sessionId && (
+        <PurchaseTracker transactionId={sessionId} value={purchase.value} currency={purchase.currency} />
+      )}
       <section className="card">
         <h1 style={{ fontSize: "1.6rem" }}>{isPro ? "You're on Pro" : "Payment received"}</h1>
         {isPro ? (
