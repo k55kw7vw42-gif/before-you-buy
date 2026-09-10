@@ -122,6 +122,30 @@ CREATE TABLE IF NOT EXISTS recommendations (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recommendations_scan ON recommendations(scan_id, position);
+
+-- A buyer-initiated protected deal. The buyer pays the full amount up front
+-- via Stripe Checkout; the platform holds it in its own balance; only when
+-- the buyer releases it does a Stripe Transfer move 97% to the seller's
+-- Connect account, leaving the 3% fee behind. Stripe is the source of truth
+-- for where the money actually is - this table is a cache/audit trail of
+-- that, driven by the same "webhook is authority, page-load reconciles
+-- immediately" pattern already used for subscriptions.
+CREATE TABLE IF NOT EXISTS deals (
+  id                         TEXT PRIMARY KEY,
+  buyer_id                   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seller_email               TEXT NOT NULL,
+  amount_cents               INTEGER NOT NULL,
+  fee_cents                  INTEGER NOT NULL,
+  currency                   TEXT NOT NULL DEFAULT 'usd',
+  status                     TEXT NOT NULL DEFAULT 'pending_seller',
+  stripe_connect_account_id  TEXT,
+  stripe_checkout_session_id TEXT,
+  stripe_charge_id           TEXT,
+  stripe_transfer_id         TEXT,
+  created_at                 TEXT NOT NULL,
+  updated_at                 TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deals_buyer ON deals(buyer_id, created_at DESC);
 `;
 
 /**

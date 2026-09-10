@@ -7,6 +7,7 @@ import {
   findUserByCustomerId,
   releaseBillingEvent,
 } from "@/lib/billing/subscription";
+import { applyDealPayment } from "@/lib/deals/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +69,16 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event): Promise<void> {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      // A Deal Protection payment (one-time, mode "payment") is a distinct
+      // flow from the Pro subscription checkout below (mode "subscription")
+      // - both land on this same endpoint, so metadata is what tells them
+      // apart. This branch never touches subscription state.
+      if (session.metadata?.kind === "deal" && session.metadata?.dealId) {
+        await applyDealPayment(stripe, session.metadata.dealId, session);
+        return;
+      }
+
       const userId = session.client_reference_id ?? session.metadata?.userId ?? null;
       const subscriptionId =
         typeof session.subscription === "string" ? session.subscription : session.subscription?.id;

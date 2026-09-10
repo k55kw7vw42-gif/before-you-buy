@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ScanRecord } from "@/lib/types";
 import { verdictLine } from "@/lib/risk/engine";
+import { DealButton } from "./DealButton";
 import { RiskBadge } from "./RiskBadge";
 import { ScoreDial } from "./ScoreDial";
 import { ShareButton } from "./ShareButton";
@@ -154,6 +155,7 @@ export function ScanResult({ scan }: { scan: ScanRecord }) {
         <Link className="btn btn-secondary" href="/link">
           Check a link
         </Link>
+        <DealButton />
       </div>
 
       <p className="disclaimer">
