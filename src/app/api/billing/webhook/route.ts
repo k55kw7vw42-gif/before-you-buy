@@ -8,6 +8,10 @@ import {
   releaseBillingEvent,
 } from "@/lib/billing/subscription";
 import { applyDealPayment } from "@/lib/deals/store";
+// Aliased: SafeSwap (a separate, independent escrow feature) has its own
+// function of the same name in its own module - keeping both imports
+// explicit here avoids any ambiguity about which one is being called.
+import { applyDealPayment as applySafeSwapPayment } from "@/lib/safeswap/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +94,25 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event): Promise<void> {
       // payload for status and period.
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       applyStripeSubscription(userId, subscription);
+      return;
+    }
+
+    case "payment_intent.succeeded": {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+      // Checkout Sessions (Pro subscriptions, Deal Protection) also create a
+      // PaymentIntent under the hood, so this event fires for those too -
+      // only SafeSwap tags its own with this metadata, so anything else is
+      // safely ignored here rather than acted on.
+      if (paymentIntent.metadata?.system !== "safeswap") return;
+
+      const dealId = paymentIntent.metadata?.dealId;
+      const buyerId = paymentIntent.metadata?.buyerId;
+      if (!dealId || !buyerId) {
+        console.error("[safeswap] payment_intent.succeeded without dealId/buyerId metadata");
+        return;
+      }
+      applySafeSwapPayment(dealId, buyerId);
       return;
     }
 

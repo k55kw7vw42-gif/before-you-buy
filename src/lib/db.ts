@@ -146,6 +146,40 @@ CREATE TABLE IF NOT EXISTS deals (
   updated_at                 TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deals_buyer ON deals(buyer_id, created_at DESC);
+
+-- SafeSwap: a separate, seller-initiated escrow feature (deliberately kept
+-- independent of the "deals" tables above rather than merged into them).
+-- The seller lists a deal with no buyer yet; whichever signed-in user pays
+-- is assigned as buyer_id, by the webhook, once Stripe confirms the
+-- PaymentIntent succeeded. "released" pays the seller 97% via a Stripe
+-- Transfer; "disputed" is a status flag only in this MVP, with no
+-- automation behind it.
+CREATE TABLE IF NOT EXISTS safeswap_deals (
+  id                        TEXT PRIMARY KEY,
+  seller_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  buyer_id                  TEXT REFERENCES users(id) ON DELETE SET NULL,
+  title                     TEXT NOT NULL,
+  price_cents               INTEGER NOT NULL,
+  status                    TEXT NOT NULL DEFAULT 'pending',
+  stripe_payment_intent_id  TEXT,
+  created_at                TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_safeswap_deals_seller ON safeswap_deals(seller_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_safeswap_deals_buyer ON safeswap_deals(buyer_id, created_at DESC);
+
+-- One row per completed release: the audit trail of what was actually split
+-- and paid out, kept separate from safeswap_deals (which only ever holds
+-- current state) so a deal's payout history is never overwritten.
+CREATE TABLE IF NOT EXISTS safeswap_transactions (
+  id                   TEXT PRIMARY KEY,
+  deal_id              TEXT NOT NULL REFERENCES safeswap_deals(id) ON DELETE CASCADE,
+  amount_cents         INTEGER NOT NULL,
+  platform_fee_cents   INTEGER NOT NULL,
+  seller_amount_cents  INTEGER NOT NULL,
+  status               TEXT NOT NULL,
+  created_at           TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_safeswap_tx_deal ON safeswap_transactions(deal_id);
 `;
 
 /**
